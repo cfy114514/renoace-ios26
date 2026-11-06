@@ -1,5 +1,5 @@
 {
-  "source_commit": "f4306a2505bffeee7ea50dbea528b4ea9ee67c06",
+  "source_commit": "39434569cc0631f4cb687a1965dd7931291f3f16",
   "scope": "minimal kernel CI source; no phone captures or workspace history",
   "framework_commit": "a8b90c0c645fd62ae850cd43e80c87bab4cc157d",
   "files": [
@@ -20,13 +20,13 @@
     },
     {
       "path": "ci/README.md",
-      "bytes": 2003,
-      "sha256": "8bd734dd4c3a1154e70b3574c3538bfcb42d5d1f7625efbe4fcfb29a6290c6ce"
+      "bytes": 2741,
+      "sha256": "683349f2b1a1fdb44076456ff90779b65fa7f6236db327244dd84b8a43997b41"
     },
     {
       "path": "device/renoace/board.toml",
-      "bytes": 1857,
-      "sha256": "a96ad9c6942ca5db3a38d249dfddc50a5926047e6e64cc70d29b7bd574cd9f68"
+      "bytes": 1866,
+      "sha256": "dfe4266ed4532421e66bf0d4b893d45a04b3321a6cc8f2bc78daf8e14b44c492"
     },
     {
       "path": "device/renoace/configs/renoace_research_defconfig",
@@ -50,8 +50,8 @@
     },
     {
       "path": "device/renoace/drivers/ArmCpu/README.md",
-      "bytes": 1026,
-      "sha256": "6211a45912260e0d6ee1efdf151979b0b51eba036d11167c167e8392c70c6b88"
+      "bytes": 1151,
+      "sha256": "4400a775acd39bb2887ed5501814daad686c158b860c9ad6d2ba60dedfb29f82"
     },
     {
       "path": "device/renoace/feeds.toml",
@@ -60,8 +60,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 329,
-      "sha256": "63aabd887222751a6134b148db77470b6e18de9b137e006049650f6dc1cd2fa9"
+      "bytes": 522,
+      "sha256": "bd4815be8de86b9802257e37d3dd35aa0f91a2ae3fc08de6dde96f22283ed0a0"
     },
     {
       "path": "tools/prepare_renoace_kernel_ci.py",
