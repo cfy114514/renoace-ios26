@@ -14,6 +14,7 @@
 - [P03 实机入口控制与装载预算记录](device/renoace/STAGE5.md)
 - [专用内核云编译成功与 MMU 交接准备](device/renoace/STAGE6.md)
 - [P04 实机 MMU 与 arm_init 入口验证](device/renoace/STAGE7.md)
+- [P05 实机 BRK 异常与返回验证](device/renoace/STAGE8.md)
 - [实机硬件参数](device/renoace/hardware.json)
 - [设备配置](device/renoace/board.toml)
 - [源码版本记录](sources.lock.json)
