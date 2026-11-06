@@ -2,7 +2,7 @@
 """Build the P06 original-MMU and first-PE(FALSE) checkpoint OFFLINE. Never operates a phone.
 
 Default output is a private experimental kernel payload for instruction-model review.
-Packaging remains fail-closed until independent P06 instruction and integration evidence exists.
+Packaging requires matching P06 native early-C, SIMD, primitive and integration evidence.
 These offline checks do not constitute hardware execution or a firmware map.
 """
 import argparse
@@ -149,11 +149,215 @@ def validate_prepared(out,source):
     return build,prep,cpio
 
 
+P06_CASES={"positive_native_c_init","private_patch_refusal","source_crc_refusal","reserved_window_refusal",
+           "bad_table_descriptor","bounded_time_refusal","table_guard_deadline","injected_pre_mmu_fault"}
+P06_HOST_CASES={"valid_complete_identity_ADT","identity_parent_changed","identity_size_truncated","arm_io_cells_wrong","cpu0_timebase_wrong"}
+P06_REVIEW_CHECKS={"first_PE_FALSE_checkpoint","complete_identity_ADT","zero_base_compatibility","FP_SIMD_restoration",
+                   "early_C_mutations","tail_and_ABL_bounds","record_and_witnesses","source_and_artifact_bindings"}
+
+
+def bound_identity(report,build,label):
+    require(report.get("build_id")==build["build_id"] and report.get("image_sha256")==build["image_sha256"] and
+            report.get("source_hashes")==build["source_hashes"],label+" stale build/Image/source identity")
+
+
+def model_dependencies():
+    directory=ROOT/"out/probe-test-deps/unicorn"
+    files=[ROOT/"references/ios-flame/tools/fdt.py"]+sorted(p for p in directory.rglob("*") if p.suffix.lower() in (".py",".dll"))
+    require(any(p.suffix.lower()==".dll" for p in files),"native Unicorn runtime DLL missing")
+    return {p.relative_to(ROOT).as_posix():sha(p.read_bytes()) for p in files}
+
+
+def check_host_cases(report):
+    require(report.get("passed") is True,"host ADT validation did not pass")
+    scope=str(report.get("scope","")).lower()
+    require("host" in scope and "not executed" in scope,"host ADT cases must be separate from guest execution")
+    cases=report.get("cases",[])
+    require(len(cases)==5 and {c.get("name") for c in cases}==P06_HOST_CASES and all(c.get("passed") is True for c in cases),"host ADT five-case coverage incomplete")
+    require(all(c.get("name")=="valid_complete_identity_ADT" or c.get("rejected") for c in cases),"host ADT negative rejection evidence missing")
+
+
+def check_fp_evidence(evidence,fields):
+    banks=[]
+    for key in ("seeded_q","context_before_q","context_after_q","cpu_return_q"):
+        values=evidence.get(key,[])
+        require(len(values)==32,"missing 32-register FP bank: "+key)
+        bank=[int(v,0) if isinstance(v,str) else v for v in values]
+        require(all(isinstance(v,int) and 0<=v<1<<128 for v in bank),"invalid Q register value")
+        banks.append(bank)
+    wanted=[(0x1020304050607080^(i*0x0101010101010101))|((0xF0E0D0C0B0A09080^(i*0x111111111111111))<<64) for i in range(32)]
+    require(len(set(wanted))==32 and all(bank==wanted for bank in banks),"seeded/context/CPU Q banks differ or witnesses are fabricated constants")
+    crc=zlib.crc32(b"".join(v.to_bytes(16,"little") for v in wanted))
+    require(fields["c_q_before_crc32"]==fields["c_q_after_crc32"]==crc,"raw C06 Q CRC differs from actual seeded bank")
+    for name,wanted_value in (("fpcr",0x07c00000),("fpsr",0x0800009f)):
+        values=[evidence.get(prefix+"_"+name) for prefix in ("seeded","context_before","context_after","cpu_return")]
+        parsed=[int(v,0) if isinstance(v,str) else v for v in values]
+        require(parsed==[wanted_value]*4,"seeded/context/CPU "+name+" restoration differs")
+        require(fields["c_"+name+"_before"]==fields["c_"+name+"_after"]==wanted_value,"raw C06 "+name+" witness differs")
+
+
+def check_layout_contract(build,out):
+    layout=build["xnu"];c=layout["constants"];bs=layout["bridge"]["symbols"];patches=layout["patches"]
+    require(build.get("mode")==layout.get("mode")==P06_MODE,"wrong P06 mode")
+    require(build["image_bytes"]==build["constants"]["CHAIN_IMAGE_SIZE"]==0x3911000 and
+            build["constants"]["DTB_OFFSET"]==0x3811000 and build["constants"]["DTB_CAPACITY"]==0x100000,"unreviewed P06 tail geometry")
+    require(build["symbols"]["_stack_top"]<=0x3811000 and build["symbols"]["_bss_end"]<=build["symbols"]["_stack_top"]-0x10000,"independent 64KiB stack leaves tail")
+    roles={c["XNU_ARM_INIT_OFFSET"]:"mmu_bridge_fp_snapshot",c["XNU_CHECKPOINT_OFFSET"]:"mmu_bridge_observer",
+           0x501294:"mmu_bridge_guard",0x50128c:"mmu_bridge_bootstrap_fatal",0x501348:None,
+           0x501364:"mmu_bridge_after_mmu",0xaa005c:None}
+    for i in range(16):
+        roles[c["XNU_LOW_VECTORS_OFFSET"]+i*0x80]="mmu_bridge_fault_"+str(i)
+        roles[c["XNU_HIGH_VECTORS_OFFSET"]+i*0x80]="mmu_bridge_fault_"+str(i)
+    require(len(roles)==39 and {p["offset"]:p["bridge_symbol"] for p in patches}==roles,"P06 exact 39 patch roles changed")
+    require(c["XNU_CHECKPOINT_OFFSET"]==CHECKPOINT_VA-c["XNU_LINK_BASE"] and c["XNU_OBS_SP0_VA"]==c["XNU_SP0_VA"]-0xd0 and c["XNU_OBS_SP1_VA"]==c["XNU_SP1_VA"],"post-PE checkpoint/stack contract changed")
+    require(c["XNU_CONST_BOOT_ARGS_VA"]==layout["symbols"]["_const_boot_args"],"constant boot_args witness mismatch")
+    require(layout["bridge"]["clean_start_pa"]==0x180004000 and layout["bridge"]["clean_end_pa"]==0x190000000 and layout["bridge"]["guard_expected_pairs"]==269,"full actual mapped clean window/guard changed")
+    require(layout["bridge"].get("abi_version")==2 and layout["bridge"].get("context_bytes")==0x1000,"wrong bridge ABI")
+    expected_resumes={"mmu_bridge_guard_resume":0x501298,"mmu_bridge_after_mmu_resume":0x501368,"mmu_bridge_fp_resume":c["XNU_ARM_INIT_OFFSET"]+4}
+    require({p["symbol"]:p["target_kernel_offset"] for p in layout["bridge"]["resume_patches"]}==expected_resumes,"three P06 resume targets changed")
+    require(layout["private_compatibility"]["original"]==0xb4001840 and layout["private_compatibility"]["replacement"]==0xd503201f,"zero-base compatibility patch changed")
+    patched=bytearray(kernel_bytes())
+    for item in patches:struct.pack_into("<I",patched,item["file_offset"],item["replacement"])
+    require(sha(patched)==layout["private_patched_macho_sha256"],"private patched artifact digest mismatch")
+    adt_validation=json.dumps(validate_adt((out/"renoace.adt").read_bytes(),(out/"build-seed.bin").read_bytes()),indent=2)+"\n"
+    require((out/"adt-validation.json").read_text()==adt_validation and sha((out/"adt-validation.json").read_bytes())==layout["ADT"]["validation_sha256"],"independent ADT validation report stale")
+    require(layout["early_c_mutation_contract"]["repeat_run_requires_pristine_reload"] is True and
+            layout["early_c_mutation_contract"]["post_C_kernel_bytes_unchanged_assertion_valid"] is False and
+            layout["early_c_mutation_contract"]["static_if_records"]["count"]==17129 and
+            len(layout["early_c_mutation_contract"]["text_instruction_sites"])==10,"original early-C mutation allowance missing")
+
+
+def check_native_model(report,cpu,build,source,out,reader,dependencies):
+    bound_identity(report,build,"P06 "+cpu)
+    require(report.get("passed") is True and report.get("partial") is False and report.get("hardware_tested") is False,"P06 full native model did not pass")
+    require(report.get("cpu_model")==cpu.upper() and report.get("native_mmu") is True and report.get("early_c_native_execution") is True and
+            report.get("virtual_alias_api_mappings") is False and report.get("translation_register_hooks") is False,"native early-C/MMU requirements not established")
+    require(report.get("test_source_sha256")==sha((source/"test_instructions.py").read_bytes()),"P06 model test source changed")
+    require(report.get("dependency_hashes")==dependencies,"P06 model dependencies changed or are unbound")
+    require(report.get("native_exception_vector_delivery") is False and any("synthetic" in str(v).lower() and "exception" in str(v).lower() for v in report.get("modeled_not_verified",[])),"synthetic fault must not be claimed as native exception delivery")
+    require("not executed" in str(report.get("absent_crc_feature_gate","")).lower(),"absent CRC feature gate must not have a fabricated pass")
+    require("32" in str(report.get("simd_restoration","")) and "FPCR/FPSR" in str(report.get("simd_restoration","")),"full FP/SIMD model evidence missing")
+    check_host_cases(report.get("host_input_validation",{}))
+    cases=report.get("cases",[])
+    require(len(cases)==8 and {p.get("name") for p in cases}==P06_CASES and all(p.get("passed") is True for p in cases),"exact eight native model cases incomplete; host cases/CRC fiction cannot count")
+    statuses={"positive_native_c_init":0,"private_patch_refusal":12,"source_crc_refusal":8,"reserved_window_refusal":4,
+              "bad_table_descriptor":18,"bounded_time_refusal":7,"table_guard_deadline":18,"injected_pre_mmu_fault":18}
+    layout=build["xnu"];c=layout["constants"];positive=None
+    for case in cases:
+        name=case["name"];folder=out/"model-tests"/cpu
+        detail=read_json(folder/(name+".json"));raw=(folder/(name+".bin")).read_bytes()
+        parsed=reader.parse_record(raw,build["build_id"],build);fields={k:int(v,0) for k,v in parsed["registers"].items()}
+        require(detail.get("name")==name and detail.get("passed") is True and detail.get("errors")==[] and detail.get("native_faults")==[],"native detail errors/faults: "+name)
+        require(detail.get("record")==case.get("record") and detail.get("events")==case.get("events"),"native summary/detail mismatch: "+name)
+        record=case.get("record",{})
+        require(record.get("sha256")==sha(raw) and record.get("bytes")==len(raw) and record.get("fields")==parsed["registers"] and "NOT phone" in record.get("origin",""),"native raw record binding mismatch: "+name)
+        require(fields["xnu_status"]==statuses[name],"native refusal/status witness mismatch: "+name)
+        require(detail.get("linux_fdt_initrd_unchanged") is True,"native substrate preservation missing: "+name)
+        for mapping in detail.get("physical_mappings_only",[]):
+            require(len(mapping)==3 and 0<=int(mapping[0],0)<=int(mapping[1],0)<1<<40,"high-VA/API model mapping present")
+        require(detail.get("physical_mappings_only"),"physical mapping evidence missing")
+        if name=="positive_native_c_init":
+            require(parsed.get("xnu_c_init_verified") is True and parsed.get("xnu_verification_failures")==[],"raw C06 checkpoint/PE/DT/clock/restoration verification failed")
+            require(detail.get("injections")==[] and detail.get("pre_entry_segments_BSS_verified") is True and detail.get("post_startup_segments_BSS_verified") is True,"positive native C path injected or memory validation missing")
+            evidence=case.get("fp_evidence",{})
+            require(evidence==detail.get("fp_evidence"),"FP summary/detail mismatch")
+            check_fp_evidence(evidence,fields)
+            events=case.get("events",[]);names=[e.get("event") for e in events]
+            require(names==["bridge_entry","table_guard","after_native_mmu","arm_init_virtual_entry","native_fp_snapshot","first_PE_init_platform_false_return","identity_return","bridge_return"],"positive early-C native event sequence changed")
+            require(events[-1].get("other_pstate_and_system_registers_exact") is True and events[-1].get("entry_btype")== (2 if cpu=="max" else 0) and events[-1].get("return_btype")==0,"native restoration/BTYPE scope missing")
+            trace=detail.get("trace_counts",{})
+            for va in (layout["symbols"]["_arm_init"],layout["symbols"]["_PE_init_platform"],CHECKPOINT_VA,0xfffffff00734fb14):
+                require(trace.get(hex(va),0)>0,"original early-C instruction trace missing: "+hex(va))
+            require(trace.get("0xfffffff00750a48c",0)==0 and detail.get("startup_memory_writes",0)>17129,"timer helper ran or static-if linkage not executed")
+            positive=(raw,parsed)
+        elif name in {"bad_table_descriptor","table_guard_deadline"}:
+            require(fields["mmu_status"]==5 and fields["mmu_guard_passed"]==0 and fields["mmu_guard_entered"]==1,"guard refusal crossed MMU boundary")
+            if name=="table_guard_deadline":require(fields["mmu_budget_expired"]==1,"table guard deadline witness missing")
+        elif name=="injected_pre_mmu_fault":
+            injected=detail.get("injections",[])
+            require(len(injected)==1 and injected[0].get("kind")=="injected_architectural_fault" and injected[0].get("not_native_delivery") is True,"synthetic exception injection mislabeled")
+            require(fields["mmu_status"]==2 and fields["mmu_fault_depth"]==1 and fields["mmu_esr"]==0x96000004 and fields["mmu_far"]==0xdead0000,"synthetic handler witness mismatch")
+        else:require(fields["xnu_attempted"]==fields["xnu_returned"]==0,"loader refusal entered kernel")
+    return {"report_sha256":sha((out/("instruction-tests-"+cpu+".json")).read_bytes()),"model_record_sha256":sha(positive[0]),"record_bytes":len(positive[0]),"case_count":8}
+
+
 def p06_package_evidence(out,source):
-    # P04 native-MMU evidence established entry only. It cannot establish first PE(FALSE).
-    # Do not consume, rename, or promote those older pass gates for this distinct artifact.
-    validate_prepared(out,source)
-    raise ValueError("P06 packaging BLOCKED: matching first-PE(FALSE) instruction-model, SIMD restoration, primitives, independent integration, ABI and owning-ABL review gates have not been implemented/accepted")
+    build,prep,cpio=validate_prepared(out,source)
+    check_layout_contract(build,out)
+    dependencies=model_dependencies()
+    spec=importlib.util.spec_from_file_location("p06_record_reader",ROOT/"tools/capture_renoace_chainprobe.py")
+    reader=importlib.util.module_from_spec(spec);spec.loader.exec_module(reader)
+    reports={cpu:read_json(out/("instruction-tests-"+cpu+".json")) for cpu in ("max","a72")}
+    models={cpu:check_native_model(report,cpu,build,source,out,reader,dependencies) for cpu,report in reports.items()}
+    require((out/"instruction-tests.json").read_bytes()==(out/"instruction-tests-max.json").read_bytes(),"canonical model must be exact current MAX report")
+    require((out/"model-record.bin").read_bytes()==(out/"model-tests/max/positive_native_c_init.bin").read_bytes(),"canonical raw record must be current MAX positive")
+    coverage_path=out/"cpu-model-coverage.json";coverage=read_json(coverage_path)
+    require(coverage.get("passed") is True and coverage.get("build_id")==build["build_id"] and coverage.get("test_source_sha256")==reports["max"]["test_source_sha256"] and coverage.get("canonical_cpu")=="MAX","dual-CPU coverage stale")
+    require(coverage.get("native_positive_injections")==[] and coverage.get("private_patches")==39 and set(coverage.get("cpus",{}))=={"max","a72"},"coverage positive injection/patch/CPU contract mismatch")
+    for cpu,model in models.items():
+        entry=coverage["cpus"][cpu]
+        require(entry.get("passed") is True and all(entry.get(k)==model[k] for k in ("case_count","report_sha256","model_record_sha256")),"dual-CPU report/record digest mismatch")
+    require(coverage.get("model_record_sha256")==models["max"]["model_record_sha256"],"canonical coverage record mismatch")
+    host_path=out/"host-input-validation.json";host=read_json(host_path);check_host_cases(host)
+    require(host==coverage.get("host_ADT_input_validation")==reports["max"]["host_input_validation"]==reports["a72"]["host_input_validation"],"separate host ADT case evidence differs")
+    abi_path=ROOT/"out/p06-simd-native/build.json";abi=read_json(abi_path);br=build["xnu"]["bridge"]
+    bridge_sources={n:build["source_hashes"][n] for n in ("mmu_bridge.S","mmu_bridge.h","mmu_bridge.ld")}
+    require(abi.get("abi_version")==2 and abi.get("context_bytes")==0x1000 and abi.get("bytes")==br["bytes"] and abi.get("raw_sha256")==br["raw_sha256"] and abi.get("sha256")==br["sha256"],"ABI2 bridge report byte binding mismatch")
+    require(abi.get("sources")==bridge_sources and abi.get("symbols")==br["symbols"] and abi.get("relocations","").strip()=="There are no relocations in this file." and abi.get("old_header_constants_preserved") is True and abi.get("header_static_asserts_compiled") is True,"ABI2 source/layout/assertions/no-relocation evidence missing")
+    require(sha((abi_path.parent/"mmu_bridge.raw.bin").read_bytes())==br["raw_sha256"] and sha((abi_path.parent/"mmu_bridge.bin").read_bytes())==br["sha256"],"independent bridge artifact changed")
+    simd_path=abi_path.parent/"results.json";simd=read_json(simd_path)
+    require(simd.get("passed") is True and simd.get("source_hashes")==bridge_sources and simd.get("bridge_sha256")==br["sha256"] and simd.get("build_report_sha256")==sha(abi_path.read_bytes()) and simd.get("test_source_sha256")==sha((abi_path.parent/"test.py").read_bytes()),"isolated SIMD unit source/artifact binding mismatch")
+    require(simd.get("native_mmu") is True and simd.get("virtual_alias_api_mappings") is False and simd.get("translation_register_hooks") is False and "synthetic" in str(simd.get("scope","")).lower(),"isolated SIMD tests must label synthetic C replacement")
+    cases=simd.get("cases",[])
+    require(len(cases)==4 and {(c.get("cpu"),c.get("case")) for c in cases}=={(cpu,case) for cpu in ("a72","max") for case in ("clobber","early-refusal")},"four native SIMD unit cases incomplete")
+    for case in cases:
+        checks=case.get("checks",{})
+        require(case.get("passed") is True and checks and all(v is True for v in checks.values()),"SIMD unit case check failed")
+        for name in ("all_32_q_registers_restored","fpcr_restored","fpsr_restored","original_cpacr_zero_restored"):
+            require(checks.get(name) is True,"SIMD native restoration check missing")
+        if case["case"]=="clobber":
+            for name in ("all_32_q_actually_clobbered","q_snapshot_exact","q_actual_post_readback_exact","fp_snapshot_exact","fp_actual_post_readback_exact","original_sub_sp_replayed"):
+                require(checks.get(name) is True,"SIMD clobber/snapshot/replay evidence missing")
+        else:require(checks.get("stale_snapshot_flag_cleared") is True and checks.get("no_fp_instructions_executed") is True,"early refusal must not touch FP")
+        result_path=(ROOT/case["result"]).resolve();require(abi_path.parent.resolve() in result_path.parents,"SIMD case result path escapes its output")
+        require(sha(result_path.read_bytes())==case.get("result_sha256"),"SIMD case result digest changed")
+    primitive_path=ROOT/"out/xnu-c-init-primitive-tests/results.json";primitive=read_json(primitive_path)
+    bound_identity(primitive,build,"P06 primitives")
+    require(primitive.get("passed")==190 and primitive.get("failed")==0 and len(primitive.get("cases",[]))==190 and all(c.get("passed") is True for c in primitive["cases"]),"190 P06 primitive cases incomplete")
+    require(primitive.get("test_sha256")==sha((source/"test_primitives.py").read_bytes()) and primitive.get("elf_sha256")==sha((out/"probe.elf").read_bytes()) and primitive.get("unicorn_version")=="2.1.4","P06 primitive source/ELF/runtime changed")
+    image=(out/"Image").read_bytes()
+    require(set(primitive.get("functions",{}))=={"crc32_bounded","copy_bounded","zero_bounded","check_zero_bounded"},"primitive function coverage incomplete")
+    for desc in primitive["functions"].values():
+        offset=int(desc["offset"],0) if isinstance(desc["offset"],str) else desc["offset"]
+        require(0<=offset and desc["bytes"]>0 and offset+desc["bytes"]<=len(image) and sha(image[offset:offset+desc["bytes"]])==desc["sha256"],"primitive compiled byte binding mismatch")
+    audit_path=ROOT/"out/analysis/abl-chainprobe-load-bounds.json";audit=read_json(audit_path)
+    backup_name=(ROOT/"local-device/bootchain-backup-latest.txt").read_text().strip();abl=(ROOT/"local-device"/backup_name/"abl.img").resolve()
+    require((ROOT/"local-device").resolve() in abl.parents and sha(abl.read_bytes())==audit.get("abl_sha256")=="88d8f89793998eeb64e3e282c94fc576214d447a9c1bfd0b5ed6c2c46c7136c4","owning original ABL identity changed")
+    require(audit["fallback_constants"]["0x47a60"]=="0x80000" and audit["fallback_constants"]["0x47a64"]=="0x5600000","owning ABL formula constants changed")
+    windows=[];rdsize=build["xnu"]["combined_ramdisk_bytes"]
+    for label,base,span in (("audited-64bit-fallback",0x80000000,0x5600000),("P02-observed-queried-window",0xa8800000,0x8000000)):
+        kernel=base+0x80000;ramdisk=base+span-((rdsize+4095)&~4095)-4096;dtb=ramdisk-0x200000-4096;capacity=dtb-kernel
+        require(0<len(image)<=capacity and len((out/"Image.gz-dtb").read_bytes())<=capacity,"new P06 expanded/gzip payload exceeds owning ABL bound")
+        windows.append({"basis":label,"kernel":hex(kernel),"initrd":hex(ramdisk),"dtb":hex(dtb),"capacity":hex(capacity),"image_bytes":len(image),"gap":hex(capacity-len(image))})
+    review_path=ROOT/"out/analysis/p06-independent-integration-review.json";review=read_json(review_path)
+    bound_identity(review,build,"independent P06 integration")
+    require(review.get("builder_sha256")==build["builder_sha256"] and review.get("code_blockers")==[] and P06_REVIEW_CHECKS<=set(review.get("checks",{})) and all(v is True for v in review["checks"].values()),"independent P06 review incomplete/unresolved")
+    checks=review.get("kernel_patch_checks",[])
+    require(len(checks)==39 and all(c.get("ok") is True for c in checks) and
+            {(c.get("offset"),c.get("original"),c.get("replacement")) for c in checks}=={(p["offset"],p["original"],p["replacement"]) for p in build["xnu"]["patches"]},"independent review does not bind exact 39 patches")
+    checks=review.get("resume_checks",[])
+    require(len(checks)==3 and all(c.get("ok") is True for c in checks) and
+            {(c.get("blob_offset"),c.get("target_kernel_offset"),c.get("replacement")) for c in checks}=={(p["blob_offset"],p["target_kernel_offset"],p["replacement"]) for p in br["resume_patches"]},"independent review does not bind three resumes")
+    return {"passed":True,"build_id":build["build_id"],"image_sha256":build["image_sha256"],"builder_sha256":build["builder_sha256"],
+            "model":{"sha256":sha((out/"instruction-tests.json").read_bytes()),"cases":sorted(P06_CASES),"native_mmu":True,"early_c_native_execution":True,"virtual_alias_api_mappings":False,"translation_register_hooks":False,"canonical_cpu":"MAX"},
+            "cpu_models":models,"model_dependencies":dependencies,"coverage_sha256":sha(coverage_path.read_bytes()),"host_ADT_report_sha256":sha(host_path.read_bytes()),
+            "reader_sha256":sha((ROOT/"tools/capture_renoace_chainprobe.py").read_bytes()),"model_record_sha256":models["max"]["model_record_sha256"],
+            "fault_scope":"injected_pre_mmu_fault is synthetic handler entry; native exception-vector delivery and absent-CRC feature branch are NOT established",
+            "integration_review_sha256":sha(review_path.read_bytes()),"bridge_ABI_report_sha256":sha(abi_path.read_bytes()),"SIMD_unit_report_sha256":sha(simd_path.read_bytes()),
+            "primitive_report_sha256":sha(primitive_path.read_bytes()),"primitive_passed":190,
+            "prepare_validation_sha256":sha((out/"prepare-validation.json").read_bytes()),"cpio_validation_sha256":sha((out/"cpio-validation.json").read_bytes()),
+            "owning_ABL_audit_sha256":sha(audit_path.read_bytes()),"ABL_sha256":audit["abl_sha256"],"P06_loader_windows":windows,
+            "hardware_tested":False,"scope":"offline gates for private P06 first-PE(FALSE) checkpoint carrier; no iOS startup or hardware execution claim"}
 
 
 def newc_entry(name,data,mode=0o100444):
@@ -677,7 +881,7 @@ def main():
         require(evidence["image_sha256"]==sha(image) and evidence["build_id"]==build_id,"recompiled Image differs from reviewed P06 candidate")
         report["instruction_model"]=evidence["model"]
         report["package_evidence"]=evidence
-        report["package_gate"]="matched P06 native-MMU model, review, ABI, primitives and fresh input evidence passed; hardware execution remains separate"
+        report["package_gate"]="matched P06 dual-CPU native early-C models, raw C06/32-Q/FP witnesses, independent review, ABI2/SIMD units, primitives and fresh input/ABL evidence passed; hardware execution remains separate"
         (out/"package-evidence.json").write_text(json.dumps(evidence,indent=2)+"\n")
         aosp=ROOT/"references/aosp-tools";pins=json.loads((aosp/"sources.json").read_text())
         for name in ("mkbootimg-v2.py","avbtool.py"):

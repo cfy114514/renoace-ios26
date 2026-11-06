@@ -33,7 +33,7 @@ ramdisk_offset = 0x1000000
 tags_offset = 0x100
 
 [research]
-stage = "p05-native-brk-exception-return-phone-verified-early-C-pending"
+stage = "p06-first-PE-FALSE-early-C-phone-verified-VM-init-pending"
 hardware = "hardware.json"
 userspace_strategy = "investigate zeta arm64e-to-arm64 lowering"
 firmware_status = "Project Aloha oppo-pclm10 found; UniXNU/DarwinBoot integration still required"

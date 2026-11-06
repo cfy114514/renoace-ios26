@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read and verify P02/P03/P04 FDT records. No reboot, image write or driver change."""
+"""Read and verify P02-P06 FDT records. No reboot, image write or driver change."""
 import argparse
 import base64
 from datetime import datetime, timezone
@@ -31,6 +31,7 @@ XNU_STATUS_NAMES = {
     16: "bridge_crc_mismatch", 17: "argument_or_adt_mismatch", 18: "mmu_bridge_refused_or_faulted",
     19: "bridge_configuration_changed", 20: "observer_layout_refused",
     21: "unsupported_exception_feature_refused",
+    22: "simd_state_mismatch", 23: "early_c_witness_mismatch",
 }
 XNU_DIAGNOSTIC_FIELDS = {
     "xnu_budget_ms", "xnu_phase", "xnu_segment", "xnu_phase_bytes", "xnu_phase_total", "xnu_phase_ticks",
@@ -53,23 +54,29 @@ mmu_restored_spsel mmu_saved_spsel mmu_bootstrap_fatal mmu_budget_expired
 """.split())
 MMU_EXCEPTION_FIELDS = {"mmu_pfr1", "mmu_mmfr2", "mmu_features", "mmu_saved_pan", "mmu_restored_pan",
                         "mmu_saved_uao", "mmu_restored_uao"}
+C_INIT_FIELDS = set("""c_fp_saved c_fp_verified c_q_before_crc32 c_q_after_crc32 c_fpcr_before c_fpcr_after
+c_fpsr_before c_fpsr_after c_pe_initialized c_pe_dt_head c_pe_boot_args c_pe_dt_size c_dt_root c_dt_size
+c_dt_end c_dt_initialized c_soc_base c_timebase_frequency c_dec_clock_rate c_boot_args_global_verified""".split())
 
 
 def parse_record(data, expected_build, build=None):
     is_xnu = bool(build and "xnu" in build)
     is_mmu = bool(is_xnu and "bridge" in build["xnu"])
     is_fault = bool(is_mmu and build["xnu"].get("expected_exception"))
+    is_c_init = bool(is_mmu and build["xnu"].get("checkpoint") and not is_fault)
     if not 32 <= len(data) <= (8192 if is_mmu else 4096) or not data.endswith(b"\0") or b"\0" in data[:-1]:
         raise ValueError("record length or NUL termination is invalid")
     lines = data[:-1].splitlines(keepends=True)
-    magic = b"RENOACE-XNU-EXCEPTION-P05\n" if is_fault else b"RENOACE-XNU-MMU-P04\n" if is_mmu else b"RENOACE-XNU-ENTRY-P03\n" if is_xnu else b"RENOACE-CHAINPROBE-P02\n"
+    magic = b"RENOACE-XNU-C-INIT-P06\n" if is_c_init else b"RENOACE-XNU-EXCEPTION-P05\n" if is_fault else b"RENOACE-XNU-MMU-P04\n" if is_mmu else b"RENOACE-XNU-ENTRY-P03\n" if is_xnu else b"RENOACE-CHAINPROBE-P02\n"
     allowed = FIELDS | XNU_FIELDS if is_xnu else FIELDS
     if is_mmu:
         allowed |= MMU_FIELDS
-    if is_fault:
+    if is_fault or is_c_init:
         allowed |= MMU_EXCEPTION_FIELDS
+    if is_c_init:
+        allowed |= C_INIT_FIELDS
     diagnostics = build["xnu"].get("diagnostics_version", 0) if is_xnu else 0
-    if diagnostics not in (0, 1):
+    if diagnostics not in (0, 1) and not (is_c_init and diagnostics == 2):
         raise ValueError("unsupported XNU diagnostic schema")
     if diagnostics:
         allowed = allowed | XNU_DIAGNOSTIC_FIELDS
@@ -129,11 +136,19 @@ def parse_record(data, expected_build, build=None):
                 expected.update(mmu_status=2, mmu_spsel=1, mmu_exception_slot=fault["slot"], mmu_fault_depth=1,
                                 mmu_esr=fault["esr"], mmu_elr=fault["elr_va"],
                                 mmu_observer_pc=link+layout["XNU_BLOB_OFFSET"]+layout["XNU_BRIDGE_FAULT_COMMON_OFFSET"])
+            if is_c_init:
+                expected.pop("xnu_x0", None);expected.pop("xnu_x21", None)
+                expected.update({"xnu_gate": base+layout["XNU_CHECKPOINT_OFFSET"], "xnu_x20": layout["XNU_CONST_BOOT_ARGS_VA"],
+                    "mmu_x30": link+layout["XNU_CHECKPOINT_OFFSET"], "mmu_sp_el0": layout["XNU_OBS_SP0_VA"], "mmu_sp_el1": layout["XNU_OBS_SP1_VA"],
+                    "c_fp_saved": 1, "c_fp_verified": 1, "c_pe_initialized": 1, "c_dt_initialized": 1, "c_boot_args_global_verified": 1,
+                    "c_pe_dt_head": link+layout["XNU_ADT_OFFSET"], "c_pe_boot_args": layout["XNU_CONST_BOOT_ARGS_VA"], "c_pe_dt_size": layout["XNU_ADT_SIZE"],
+                    "c_dt_root": link+layout["XNU_ADT_OFFSET"], "c_dt_size": layout["XNU_ADT_SIZE"], "c_dt_end": link+layout["XNU_ADT_OFFSET"]+layout["XNU_ADT_SIZE"],
+                    "c_soc_base": 0, "c_timebase_frequency": 19200000, "c_dec_clock_rate": 19200000})
         else:
             expected.update(xnu_gate=base+layout["XNU_GATE_OFFSET"], xnu_x0=base+layout["XNU_VECTOR_OFFSET"])
         failures = [key for key, value in expected.items() if fields[key] != value]
-        if is_fault:
-            if (fields["mmu_spsr"] & 31) != 4:
+        if is_fault or is_c_init:
+            if is_fault and (fields["mmu_spsr"] & 31) != 4:
                 failures.append("pre-exception EL1t state")
             if (fields["mmu_pfr1"] >> 4) & 15:
                 failures.append("uncovered SSBS exception semantics")
@@ -142,14 +157,21 @@ def parse_record(data, expected_build, build=None):
             for bit, name in ((1, "pan"), (2, "uao")):
                 if fields["mmu_features"] & bit and fields["mmu_saved_"+name] != fields["mmu_restored_"+name]:
                     failures.append(name+" exception restoration")
+        if is_c_init:
+            for name in ("q_before_crc32", "fpcr_before", "fpsr_before"):
+                peer={"q_before_crc32":"q_after_crc32", "fpcr_before":"fpcr_after", "fpsr_before":"fpsr_after"}[name]
+                if fields["c_"+name] != fields["c_"+peer]:
+                    failures.append(name+" SIMD restoration")
         if is_mmu:
             for key in ("mmu_sctlr", "mmu_after_mmu_sctlr"):
                 if fields[key] & 0x1005 != 0x1005:
                     failures.append(key+" MMU/cache state")
+            sp0=layout["XNU_OBS_SP0_VA"] if is_c_init else layout["XNU_SP0_VA"]
+            sp1=layout["XNU_OBS_SP1_VA"] if is_c_init else layout["XNU_SP1_VA"]
             witnesses = {"code": (link+layout["XNU_BLOB_OFFSET"]+layout["XNU_BRIDGE_OBSERVER_OFFSET"], blob+layout["XNU_BRIDGE_OBSERVER_OFFSET"]),
-                         "args": (fields["xnu_x0"], expected["xnu_args"]),
-                         "sp0": (layout["XNU_SP0_VA"]-16, base+layout["XNU_SP0_VA"]-16-link),
-                         "sp1": (layout["XNU_SP1_VA"]-16, base+layout["XNU_SP1_VA"]-16-link),
+                         "args": (link+layout["XNU_ARGS_OFFSET"], expected["xnu_args"]),
+                         "sp0": (sp0-16, base+sp0-16-link),
+                         "sp1": (sp1-16, base+sp1-16-link),
                          "identity": (fields["mmu_identity_pc"], fields["mmu_identity_pc"])}
             for name, (va, pa) in witnesses.items():
                 par = fields["mmu_par_"+name]
@@ -194,6 +216,10 @@ def parse_record(data, expected_build, build=None):
             result.update(xnu_exception_verified=not failures, verification_kind="expected_exception",
                           checkpoint=build["xnu"]["expected_exception"]["checkpoint"] if not failures else None,
                           scope="deliberate BRK at virtual arm_init; exception delivery and identity return; arm_init C body and iOS startup not established")
+        if is_c_init:
+            result.update(xnu_c_init_verified=not failures, verification_kind="first_PE_false_return",
+                          checkpoint="first_PE_false_return" if not failures else None,
+                          scope="original early arm_init C through first PE_init_platform(FALSE,args) return with private zero-base compatibility; no later scheduler/IOKit/iOS startup established")
     return result
 
 
