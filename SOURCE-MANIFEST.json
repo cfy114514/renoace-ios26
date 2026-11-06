@@ -1,5 +1,5 @@
 {
-  "source_commit": "d5b51b67ad5a71c44e4c7aee400a60b7708237bf",
+  "source_commit": "065b24d30f7013596cc54a77d51e003f2e1b12b3",
   "scope": "minimal kernel CI source; no phone captures or workspace history",
   "framework_commit": "a8b90c0c645fd62ae850cd43e80c87bab4cc157d",
   "files": [
@@ -20,13 +20,13 @@
     },
     {
       "path": "README.md",
-      "bytes": 522,
-      "sha256": "bd4815be8de86b9802257e37d3dd35aa0f91a2ae3fc08de6dde96f22283ed0a0"
+      "bytes": 706,
+      "sha256": "7c395585a2761ddd758152da414adcee546b345be03980086676a40c40d46cb8"
     },
     {
       "path": "ci/README.md",
-      "bytes": 4719,
-      "sha256": "55277621c5f862582a54c3b58ff705cd664f2f263aa0ae60b0371f258761d0b4"
+      "bytes": 5143,
+      "sha256": "40c0db7bdda797b68816033cfa6a806698410355f42731c8898783b7e5d9bf4e"
     },
     {
       "path": "device/renoace/board.toml",

@@ -1,8 +1,10 @@
 # Reno Ace 内核 CI
 
-这个手动工作流使用 GitHub 托管的 `macos-26`、Xcode26.6 和 Python3.12，用户无需自备 Mac。**[首轮有效云构建已成功](https://github.com/cfy114514/renoace-ios26/actions/runs/42271869198)；本轮增加 arm-io 物理地址零和缺失总线频率的源码修正，需要重新构建并另行验证手机行为。**
+这个手动工作流使用 GitHub 托管的 `macos-26`、Xcode26.6 和 Python3.12，用户无需自备 Mac。**[正式零基址源码修复云构建已成功](https://github.com/cfy114514/renoace-ios26/actions/runs/42306878464)**，实际源码提交为 `f5ac9b1a95c85a9b9b7b66461016c295dd4952bd`。
 
-构建提交为 `02920f9cee5dc19f5d7672a902b266a54978aeb2`。产物 `mach.development.bcm2837.unstripped.noctf` 为普通 ARM64 Mach-O，23,005,680字节，SHA-256 `1295a653bc235d0c11d18ea7a0fc155209fd87396118196ecc8b87e8096f68b8`。下载后的 ZIP/内核哈希、输入清单和有效配置已核对；静态机器码确认两个启用掩码均为 `0x0008ffff`，中断19对应分支调用 `rtclock_intr`。真实中断、MMU/arm_init 和 iOS 用户态尚待验证。
+新产物 `mach.development.bcm2837.unstripped.noctf` 为普通 ARM64 Mach-O，23,005,792字节，SHA-256 `c361eda7d383619ec76c814a4f2121955547fadaa8235131d6849aa14d995743`。32项独立静态检查确认：完整44+1补丁及其顺序、源码与编译记录、区分合法基址零的 checked API、缺失总线频率保护，以及保留的 INTID19 启用和分派机器码。两个对象哈希来自 CI 记录，产物未附 `.o` 本体；不能把记录当作本地重算结果。新内核的实机执行另行记录。
+
+[首轮有效构建](https://github.com/cfy114514/renoace-ios26/actions/runs/42271869198)的内核 SHA-256 为 `1295a653bc235d0c11d18ea7a0fc155209fd87396118196ecc8b87e8096f68b8`，已用于后续 P04–P06 临时诊断。首次 PE 初始化的实机通过仍属于该旧内核及其明确记录的私有诊断修改，不是新源码产物的运行证明。真实 INTID19 投递和完整 iOS 仍未验证。
 
 工作流固定检出 `none24smu/UniXNU` 提交 `a8b90c0c645fd62ae850cd43e80c87bab4cc157d` 及其子模块，以两个并行任务编译 XNU12377 内核。Actions 本身也固定到已查证的完整提交 SHA。触发方式只有 `workflow_dispatch`，权限只有 `contents: read`，没有任意 shell 输入。
 
@@ -22,7 +24,7 @@
 
 产物保留14天，包括 unstripped 内核、构建日志、有效配置、源码与文件哈希、实际 AppleClang/SDK 和其他工具版本。构建成功必须再核对实际补丁模块链接、XNU 提交、设备补丁反向检查、三个相关源码哈希，以及 `pe_identify_machine.o` / `pe_init.o` 的哈希和编译记录。`source-compile-manifest.json` 与 `compile-records/` 保留这些证据，编译命令和诊断见 `logs/kernel.log`。失败时也收集已有日志；工具版本查询缺失或超时不会阻止其余证据收集。SDK、KDK、依赖缓存和设备原始资料不在上传路径中。
 
-本轮本地验证已通过：八文件复制、原始设备与框架补丁哈希保持不变、TOML 语义检查，以及实际 UniXNU CLI 的 `defconfig` / `status` 和四条命令的实际模块解析；`ArmCpu` 解析为 Reno Ace 的设备覆盖。对三个相关源文件先依序应用继承的 `native-dt-panic-region`、`native-source-crypto`、`native-verbose-console`，再应用设备补丁，正向与反向检查通过；这不等同于本地完整 XNU 编译。设备补丁的独立验证另有35个已执行宿主测试和 AArch64 目标编译。本轮 actionlint 通过；新云构建及手机运行结果须分别验证。
+本轮本地验证已通过：八文件复制、原始设备与框架补丁哈希保持不变、TOML 语义检查，以及实际 UniXNU CLI 的 `defconfig` / `status` 和四条命令的实际模块解析；`ArmCpu` 解析为 Reno Ace 的设备覆盖。对三个相关源文件先依序应用继承的 `native-dt-panic-region`、`native-source-crypto`、`native-verbose-console`，再应用设备补丁，正向与反向检查通过；这不等同于本地完整 XNU 编译。设备补丁的独立验证另有35个已执行宿主测试和 AArch64 目标编译。本轮 actionlint 和新云构建通过；手机运行结果须分别验证。
 
 首轮云构建日志记录 Xcode26.6/17F113、iPhoneOS SDK26.5、AppleClang21.0.0；编译完成不代表内核运行时自检已通过。重编译会改变内核布局，旧内核的地址与私有二进制修补偏移不能直接复用。
 
