@@ -16,7 +16,7 @@ jobs:
     timeout-minutes: 180
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
-      RENOACE_CI_OUT: ${{ runner.temp }}/renoace-kernel-ci
+      RENOACE_CI_OUT: out/renoace-kernel-ci
       HOMEBREW_NO_AUTO_UPDATE: '1'
       HOMEBREW_NO_INSTALL_CLEANUP: '1'
     steps:
@@ -82,7 +82,7 @@ jobs:
         with:
           name: renoace-xnu-kernel-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            ${{ runner.temp }}/renoace-kernel-ci/build/renoace/kernel/
-            ${{ runner.temp }}/renoace-kernel-ci/evidence/
+            out/renoace-kernel-ci/build/renoace/kernel/
+            out/renoace-kernel-ci/evidence/
           if-no-files-found: warn
           retention-days: 14
