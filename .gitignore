@@ -1,0 +1,7 @@
+# Private device evidence and source dependencies stay local.
+local-device/
+references/
+worktrees/
+out/
+__pycache__/
+*.pyc

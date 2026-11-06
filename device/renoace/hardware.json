@@ -1,0 +1,486 @@
+{
+  "status": "measured-in-Android; XNU and iOS not boot-tested",
+  "evidence": {
+    "capture": "local-device/20261106T115059Z",
+    "fdt_sha256": "1503f2b63781e634735f14ecd659abb40c70a2be3fe3e7820ac451a5bb912800"
+  },
+  "identity": {
+    "manufacturer": "OPPO",
+    "model": "PCLM10",
+    "device": "OP4A89",
+    "project": "19081",
+    "soc": "SM8150_Plus",
+    "soc_id": 339,
+    "soc_revision": "2.2"
+  },
+  "android": {
+    "product": "yaap_OP4A89",
+    "version": "15",
+    "verified_boot_state": "orange",
+    "root_read_verified": true,
+    "fastboot_boot_tested": true,
+    "fastboot_unlocked_reported": true,
+    "fastboot_boot_accepted": false,
+    "fastboot_boot_result": "download accepted; boot command rejected as unknown"
+  },
+  "cpu": {
+    "count": 8,
+    "features_reported_by_linux": [
+      "aes",
+      "asimd",
+      "asimddp",
+      "asimdhp",
+      "asimdrdm",
+      "atomics",
+      "cpuid",
+      "crc32",
+      "dcpop",
+      "evtstrm",
+      "fp",
+      "fphp",
+      "lrcpc",
+      "pmull",
+      "sha1",
+      "sha2"
+    ],
+    "paca_reported": false,
+    "pacg_reported": false,
+    "native_el1_pauth_tested": false,
+    "dt_cpu_regs": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        256
+      ],
+      [
+        0,
+        512
+      ],
+      [
+        0,
+        768
+      ],
+      [
+        0,
+        1024
+      ],
+      [
+        0,
+        1280
+      ],
+      [
+        0,
+        1536
+      ],
+      [
+        0,
+        1792
+      ]
+    ],
+    "psci_method": "smc"
+  },
+  "memory": {
+    "banks": [
+      {
+        "address": "0x80000000",
+        "size": "0x3bb00000"
+      },
+      {
+        "address": "0x180000000",
+        "size": "0x100000000"
+      },
+      {
+        "address": "0xc0000000",
+        "size": "0xc0000000"
+      }
+    ],
+    "note": "Bank extents include reserved regions; do not use as allocator free ranges.",
+    "reservations": [
+      {
+        "node": "/reserved-memory/hyp_mem",
+        "ranges": [
+          {
+            "address": "0x85700000",
+            "size": "0x600000"
+          }
+        ]
+      },
+      {
+        "node": "/reserved-memory/xbl_aop_mem",
+        "ranges": [
+          {
+            "address": "0x85e00000",
+            "size": "0x140000"
+          }
+        ]
+      },
+      {
+        "node": "/reserved-memory/smem",
+        "ranges": [
+          {
+            "address": "0x86000000",
+            "size": "0x200000"
+          }
+        ]
+      },
+      {
+        "node": "/reserved-memory/removed_regions",
+        "ranges": [
+          {
+            "address": "0x86200000",
+            "size": "0x7500000"
+          }
+        ]
+      },
+      {
+        "node": "/reserved-memory/camera_region",
+        "ranges": [
+          {
+            "address": "0x9ab00000",
+            "size": "0x500000"
+          }
+        ]
+      },
+      {
+        "node": "/reserved-memory/pil_wlan_fw_region",
+        "ranges": [
+          {
+            "address": "0x9b000000",
+            "size": "0x180000"
+          }
+        ]
+      },
+      {
+        "node": "/reserved-memory/pil_npu_region",
+        "ranges": [
+          {
+            "address": "0x9b180000",
+            "size": "0x80000"
+          }
+        ]
+      },
+      {
+        "node": "/reserved-memory/pil_adsp_region",
+        "ranges": [
+          {
+            "address": "0x9b200000",
+            "size": "0x1e00000"
+          }
+        ]
+      },
+      {
+        "node": "/reserved-memory/modem_region",
+        "ranges": [
+          {
+            "address": "0x8dc00000",
+            "size": "0xa000000"
+          }
+        ]
+      },
+      {
+        "node": "/reserved-memory/pil_video_region",
+        "ranges": [
+          {
+            "address": "0x97c00000",
+            "size": "0x500000"
+          }
+        ]
+      },
+      {
+        "node": "/reserved-memory/pil_slpi_region",
+        "ranges": [
+          {
+            "address": "0x98100000",
+            "size": "0x1400000"
+          }
+        ]
+      },
+      {
+        "node": "/reserved-memory/pil_ipa_fw_region",
+        "ranges": [
+          {
+            "address": "0x99500000",
+            "size": "0x10000"
+          }
+        ]
+      },
+      {
+        "node": "/reserved-memory/pil_ipa_gsi_region",
+        "ranges": [
+          {
+            "address": "0x99510000",
+            "size": "0x5000"
+          }
+        ]
+      },
+      {
+        "node": "/reserved-memory/pil_gpu_region",
+        "ranges": [
+          {
+            "address": "0x99515000",
+            "size": "0x2000"
+          }
+        ]
+      },
+      {
+        "node": "/reserved-memory/pil_spss_region",
+        "ranges": [
+          {
+            "address": "0x99600000",
+            "size": "0x100000"
+          }
+        ]
+      },
+      {
+        "node": "/reserved-memory/cdsp_regions",
+        "ranges": [
+          {
+            "address": "0x99700000",
+            "size": "0x1400000"
+          }
+        ]
+      },
+      {
+        "node": "/reserved-memory/qseecom_region",
+        "ranges": [
+          {
+            "address": "0xa0000000",
+            "size": "0x1400000"
+          }
+        ]
+      },
+      {
+        "node": "/reserved-memory/cdsp_sec_regions",
+        "ranges": [
+          {
+            "address": "0xa4c00000",
+            "size": "0xc00000"
+          }
+        ]
+      },
+      {
+        "node": "/reserved-memory/cont_splash_region",
+        "ranges": [
+          {
+            "address": "0x9d000000",
+            "size": "0x2400000"
+          }
+        ]
+      },
+      {
+        "node": "/reserved-memory/disp_rdump_region",
+        "ranges": [
+          {
+            "address": "0x9d000000",
+            "size": "0x2400000"
+          }
+        ]
+      },
+      {
+        "node": "/reserved-memory/ramoops@0x0xB7E00000",
+        "ranges": [
+          {
+            "address": "0xb7e00000",
+            "size": "0x400000"
+          }
+        ]
+      },
+      {
+        "node": "/reserved-memory/kboot_uboot_logmem@0xB8200000",
+        "ranges": [
+          {
+            "address": "0xb8200000",
+            "size": "0x100000"
+          }
+        ]
+      }
+    ]
+  },
+  "interrupts": {
+    "gic": [
+      {
+        "address": "0x17a00000",
+        "size": "0x10000"
+      },
+      {
+        "address": "0x17a60000",
+        "size": "0x100000"
+      }
+    ],
+    "timer_hz": 19200000,
+    "timer_interrupt_cells": [
+      1,
+      1,
+      3848,
+      1,
+      2,
+      3848,
+      1,
+      3,
+      3848,
+      1,
+      0,
+      3848
+    ]
+  },
+  "display": {
+    "component_report": "SOFEF03F_M / samsung1024",
+    "node": "/soc/qcom,mdss_mdp@ae00000/qcom,mdss_dsi_samsung_sofef03f_m_fhd_plus_90fps_cmd",
+    "mode": "dsi_cmd_mode",
+    "timings": [
+      {
+        "width": 1080,
+        "height": 2400,
+        "refresh_hz": 60
+      },
+      {
+        "width": 1080,
+        "height": 2400,
+        "refresh_hz": 90
+      }
+    ],
+    "splash_reserved_region": [
+      {
+        "address": "0x9d000000",
+        "size": "0x2400000"
+      }
+    ],
+    "actual_bootloader_scanout_address": null,
+    "actual_stride_bytes": null
+  },
+  "touch": {
+    "compatible": "synaptics-s3706",
+    "controller": "Synaptics S3706",
+    "bus": "GENI I2C",
+    "mmio": [
+      {
+        "address": "0xc80000",
+        "size": "0x4000"
+      }
+    ],
+    "i2c_address": "0x20",
+    "irq_gpio": {
+      "controller": "/soc/pinctrl@03000000",
+      "pin": 122,
+      "flags": "0x2008"
+    },
+    "reset_gpio": {
+      "controller": "/soc/pinctrl@03000000",
+      "pin": 54,
+      "flags": "0x1"
+    },
+    "enable_1v8_gpio": {
+      "controller": "/soc/qcom,spmi@c440000/qcom,pm8150l@4/pinctrl@c000",
+      "pin": 5,
+      "flags": "0x1"
+    },
+    "vdd_supply": "pm8150_l17",
+    "vdd_requested_microvolts": 3000000,
+    "coordinates": [
+      1080,
+      2400
+    ]
+  },
+  "volume_keys": {
+    "vol_up": {
+      "controller": "/soc/qcom,spmi@c440000/qcom,pm8150@0/pinctrl@c000",
+      "pin": 6,
+      "flags": "0x1"
+    },
+    "vol_down": {
+      "controller": "/soc/qcom,spmi@c440000/qcom,pm8150@0/pinctrl@c000",
+      "pin": 7,
+      "flags": "0x1"
+    }
+  },
+  "gpu": {
+    "model": "Adreno640v2",
+    "registers": [
+      {
+        "address": "0x2c00000",
+        "size": "0x40000"
+      },
+      {
+        "address": "0x2c61000",
+        "size": "0x800"
+      },
+      {
+        "address": "0x6900000",
+        "size": "0x44000"
+      },
+      {
+        "address": "0x780000",
+        "size": "0x6fff"
+      }
+    ]
+  },
+  "ufs": {
+    "registers": [
+      {
+        "address": "0x1d84000",
+        "size": "0x2500"
+      },
+      {
+        "address": "0x1d90000",
+        "size": "0x8000"
+      }
+    ],
+    "ios_partition_selected": false
+  },
+  "usb": {
+    "primary_controller": [
+      {
+        "address": "0xa600000",
+        "size": "0x100000"
+      }
+    ],
+    "hs_phy": [
+      {
+        "address": "0x88e2000",
+        "size": "0x110"
+      },
+      {
+        "address": "0x7801f8",
+        "size": "0x4"
+      }
+    ]
+  },
+  "installed_boot_image": {
+    "kernel_size": 20179374,
+    "kernel_addr": 32768,
+    "ramdisk_size": 1531351,
+    "ramdisk_addr": 16777216,
+    "second_size": 0,
+    "second_addr": 0,
+    "tags_addr": 256,
+    "page_size": 4096,
+    "header_version": 2,
+    "os_version": 503316873,
+    "recovery_dtbo_size": 0,
+    "recovery_dtbo_offset": 0,
+    "header_size": 1660,
+    "dtb_size": 506979,
+    "dtb_addr": 32505856,
+    "kernel_compression": "gzip",
+    "kernel_field_layout": "gzip(Image) followed by DTB",
+    "dtb_copies_identical": true
+  },
+  "backup_scope": [
+    "boot",
+    "dtbo",
+    "recovery",
+    "vbmeta"
+  ],
+  "missing": [
+    "alternative boot entry; ABL lacks standard fastboot boot",
+    "Reno Ace UEFI or target-XNU-compatible shim",
+    "native XNU boot log",
+    "bootloader display state",
+    "SM8150 drivers for XNU 12377",
+    "complete recovery/calibration/user-data backup",
+    "iOS 26 userland inputs and ABI validation"
+  ]
+}

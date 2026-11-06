@@ -1,0 +1,145 @@
+{
+  "research_date": "2026-11-06",
+  "sources": [
+    {
+      "purpose": "framework",
+      "path": "worktrees/UniXNU-renoace",
+      "url": "https://github.com/none24smu/UniXNU",
+      "upstream_ref": "ios26-ufs-owner-root",
+      "commit": "a8b90c0c645fd62ae850cd43e80c87bab4cc157d",
+      "local_branch": "codex/renoace-ios26",
+      "submodules": [
+        {
+          "commit": "1951cc8444b340d7d8879e9418220cf29eb711d7",
+          "path": "drivers/ArmCpu"
+        },
+        {
+          "commit": "0d544705c2e89725caabc0542bb96bc8febd8c70",
+          "path": "drivers/ArmDTPlatform"
+        },
+        {
+          "commit": "532de8c017e394e69a0b48dc0ffc4ac0d0701177",
+          "path": "drivers/ArmVirtPlatform"
+        },
+        {
+          "commit": "85332b317ee80898fc78939ea64e6ca52d3837a3",
+          "path": "drivers/DarwinBoot"
+        },
+        {
+          "commit": "a34964b8c2fec2e83c8e4f68fb7d6fb7e4b2227b",
+          "path": "drivers/NativeAES"
+        },
+        {
+          "commit": "805c7e4bfb7451eb6923f4a14dea8c657b9be7d2",
+          "path": "drivers/NativeAdreno"
+        },
+        {
+          "commit": "b5399b5646c4d7415deec6d887fd51715a97a024",
+          "path": "drivers/NativeGeniSpi"
+        },
+        {
+          "commit": "588c96fe3b1bf079d4d9a9f1847456d2c9e76793",
+          "path": "drivers/NativeHidInput"
+        },
+        {
+          "commit": "e59bac4ad1ac8825919ae94da8440a64d8ab90b3",
+          "path": "drivers/NativeKeyStoreEvents"
+        },
+        {
+          "commit": "ff0c70d7249a04ee381d9854c214069324a34d5c",
+          "path": "drivers/NativeMetal"
+        },
+        {
+          "commit": "c031d882b9721d943383d11f66dc4748252ce929",
+          "path": "drivers/NativeMobileDisplay"
+        },
+        {
+          "commit": "7194961a668e59018323b626be4fd7ce0a91e78f",
+          "path": "drivers/NativeRamBlock"
+        },
+        {
+          "commit": "af785c1777161a62931425c2faaa536ce0bebd5b",
+          "path": "drivers/NativeUfs"
+        },
+        {
+          "commit": "98909eb9198a4360d7a43be831887cb8b74d814d",
+          "path": "drivers/NativeVirtioBlock"
+        },
+        {
+          "commit": "066f9bded311233ed56824e13a5628077619efda",
+          "path": "drivers/NativeVirtioConsole"
+        },
+        {
+          "commit": "40fdb8ea87606612ac6f1e80bbb49955d0ce4051",
+          "path": "kits/AdrenoFirmware"
+        },
+        {
+          "commit": "445f8fe6d115738352b9d78dc70af6d61aa7f62f",
+          "path": "kits/AdrenoPM4"
+        },
+        {
+          "commit": "032a867b5dc3121164bbd706e4e81e3b9fcd2b8f",
+          "path": "kits/AirNir"
+        },
+        {
+          "commit": "4d0d6598b1a36aeec3de01091893fa6660e49388",
+          "path": "kits/ArmSmmu4K"
+        },
+        {
+          "commit": "2b6ffb50117eee820b98aca9bd51b5c7dfb2970e",
+          "path": "kits/NativePrelink"
+        },
+        {
+          "commit": "2854c61f6c4dfda870ac3d93e1f03d9181edb041",
+          "path": "kits/VerifiedRoot"
+        }
+      ]
+    },
+    {
+      "purpose": "ios26_compatibility",
+      "path": "references/UniXNU-zeta",
+      "url": "https://github.com/none24smu/UniXNU-zeta",
+      "upstream_ref": "cce9be4536221b3fac56a9dea0d7ee2a955fd077",
+      "commit": "cce9be4536221b3fac56a9dea0d7ee2a955fd077"
+    },
+    {
+      "purpose": "sm8150_reference",
+      "path": "references/ios-flame",
+      "url": "https://github.com/NWylynko/ios-flame",
+      "upstream_ref": "main",
+      "commit": "745c4341af86089efb0df851fa8a27fb8face624"
+    },
+    {
+      "purpose": "oppo_source",
+      "path": "references/oppo-kernel",
+      "url": "https://github.com/oppo-source/Reno10X-RenoAce-10.0-kernel-source",
+      "upstream_ref": "master",
+      "commit": "289d6118ef783a281a8ecf0378e3c560ff6976c4",
+      "checkout": "sparse: DTS, touchscreen, Qualcomm clocks and SoC sources"
+    },
+    {
+      "purpose": "renoace_uefi_reference",
+      "path": "references/aloha",
+      "url": "https://github.com/Project-Aloha/mu_aloha_platforms",
+      "upstream_ref": "main",
+      "commit": "78ff39135c65cbdcf353db277ffeea61f965698e",
+      "checkout": "sparse Reno Ace target and build references"
+    }
+  ],
+  "device_overrides": [
+    {
+      "module": "ArmCpu",
+      "path": "device/renoace/drivers/ArmCpu",
+      "upstream_commit": "1951cc8444b340d7d8879e9418220cf29eb711d7",
+      "change": "Reno Ace virtual timer INTID19 for enablement and dispatch",
+      "compiled_into_kernel": false
+    }
+  ],
+  "xnu_control_artifact": {
+    "repo": "none24smu/UniXNU",
+    "run_id": 41135403689,
+    "commit": "7f981f88ca0388079af5f0ff01d9eb544b96a5cb",
+    "kernel_sha256": "c973fe6cf1f039781972b580a9423613effd08806e66bd88ac5a2d2a9e3ef0fb",
+    "purpose": "unmodified early-entry control only, not selected full-userland baseline"
+  }
+}
