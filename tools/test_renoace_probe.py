@@ -351,7 +351,17 @@ class ProbeMachine:
     def run(self):
         started = time.monotonic()
         try:
-            self.uc.emu_start(IMAGE_BASE, IMAGE_BASE + len(self.image), timeout=20_000_000, count=MAX_INSNS)
+            entry = IMAGE_BASE
+            if self.scenario.fault == "fatal_reentry":
+                # Exercise the actual compiled handler's terminal recursion
+                # guard; this does not simulate architectural exception entry.
+                self.uc.mem_write(IMAGE_BASE + self.symbols["exception_active"], struct.pack("<I", 2))
+                self.uc.mem_write(IMAGE_BASE + self.symbols["reset_fallback_allowed"], struct.pack("<I", 1))
+                self.pmic.update({0x8F: 5, 0x5A: 0xA1, 0x5B: 0xD5})
+                self.uc.reg_write(ar.UC_ARM64_REG_SP, IMAGE_BASE + self.symbols["_stack_top"])
+                self.uc.reg_write(ar.UC_ARM64_REG_X0, 4)
+                entry = IMAGE_BASE + self.symbols["probe_exception"]
+            self.uc.emu_start(entry, IMAGE_BASE + len(self.image), timeout=20_000_000, count=MAX_INSNS)
         except un.UcError as exc:
             self.failure = self.failure or f"Unicorn: {exc}"
         if self.outcome is None and self.failure is None:
@@ -372,13 +382,16 @@ class ProbeMachine:
         }
 
 
-def verify(scenario, result):
+def verify(scenario, result, reset_mode="psci", delay_ms=3000):
     require(result["failure"] is None, result["failure"])
     require(result["executed_image_unchanged"], "compiled code/rodata was modified")
     require(result["fixture_unchanged"], "FDT was modified")
     events = result["events"]
     reset_events = [e for e in events if e["event"] in ("psci_system_reset", "ps_hold")]
-    if scenario.fdt_mutation != "none" or scenario.mmu_on:
+    if scenario.fault == "fatal_reentry":
+        require(result["outcome"] == "park" and not reset_events, "repeated fatal handler must park")
+        require(not result["external_writes"] and not result["counts"].get("ramoops_writes"), "fatal reentry unexpectedly wrote external memory")
+    elif scenario.fdt_mutation != "none" or scenario.mmu_on:
         require(result["outcome"] == "park", "invalid entry should park")
         require(not result["external_writes"] and not result["counts"].get("ramoops_writes"), "invalid entry wrote external memory")
         require(not reset_events, "invalid entry attempted reset")
@@ -389,40 +402,47 @@ def verify(scenario, result):
         require(result["counter_ticks"] <= FREQ, "100ms transfer failure exceeded bounded counter budget")
     elif scenario.fault in ("warm_read_error", "warm_write_error"):
         require(result["outcome"] == "park", "returned PSCI after failed warm setup should park")
-        require([e["event"] for e in reset_events] == ["psci_system_reset"], "unverified warm reset used PS_HOLD")
+        expected_events = [] if reset_mode == "direct" else ["psci_system_reset"]
+        require([e["event"] for e in reset_events] == expected_events, "unverified warm reset used PS_HOLD or unexpected firmware call")
         require(result["final_pmic"]["0x5a"] == "0xa7" and result["final_pmic"]["0x5b"] == "0xd5", "failed warm setup did not preserve/restore PMIC control bytes")
     else:
-        expected = "ps_hold_reset" if scenario.smc_returns else "psci_reset"
+        expected = "ps_hold_reset" if reset_mode == "direct" or scenario.smc_returns else "psci_reset"
         require(result["outcome"] == expected, "successful reset outcome differs")
         require(result["log"].startswith("====0.0-D\nRENOACE-P01 entry\n"), "invalid Linux DMESG record header")
-        require(result["log"].endswith("RENOACE-P01 PSCI reset\n"), "final reset marker absent")
+        marker = "DIRECT PS_HOLD" if reset_mode == "direct" else "PSCI"
+        require(result["log"].endswith(f"RENOACE-P01 {marker} reset\n"), "final reset marker absent")
         require("bootloader_reason_result=0x0000000000000000" in result["log"], "bootloader preparation did not succeed")
         require(f"current_el=0x{scenario.el:016x}" in result["log"], "wrong EL path")
         require(result["final_pmic"] == {"0x8f": "0x5", "0x5a": "0xa1", "0x5b": "0xd5"}, "PMIC unrelated bits not preserved")
         writes = [e for e in events if e["event"] == "pmic_write"]
         require([(e["offset"], e["value"]) for e in writes] == [("0x8f", "0x5"), ("0x5b", "0x55"), ("0x5a", "0xa1"), ("0x5b", "0xd5")], "unexpected PMIC write sequence")
         require(writes[2]["ticks"] - writes[1]["ticks"] >= FREQ // 2000, "PS_HOLD type changed before 500us delay")
-        require(reset_events[0]["ticks"] - writes[-1]["ticks"] >= 3 * FREQ, "three-second delay did not execute")
-        expected_events = ["psci_system_reset", "ps_hold"] if scenario.smc_returns else ["psci_system_reset"]
+        require(reset_events[0]["ticks"] - writes[-1]["ticks"] >= delay_ms * FREQ // 1000, "configured delay did not execute")
+        expected_events = ["ps_hold"] if reset_mode == "direct" else (["psci_system_reset", "ps_hold"] if scenario.smc_returns else ["psci_system_reset"])
         require([e["event"] for e in reset_events] == expected_events, "unexpected reset calls")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--build", type=Path, default=ROOT / "out/renoace-p01")
+    parser.add_argument("--build", type=Path, required=True, help="explicit build directory; historical controls have different guards")
     parser.add_argument("--fixture", type=Path, default=ROOT / "local-device/20261106T115059Z/live.dtb")
-    parser.add_argument("--output", type=Path, default=ROOT / "out/probe-tests")
+    parser.add_argument("--output", type=Path, help="default: out/probe-validation/<build-directory-name>")
     parser.add_argument("--case", help="run one named scenario")
     args = parser.parse_args()
+    if args.output is None:
+        args.output = ROOT / "out/probe-validation" / args.build.name
     require(un.__version__ == "2.1.4", "dependency must be pinned Unicorn 2.1.4")
     metadata = json.loads((args.build / "build.json").read_text())
+    reset_mode = metadata.get("reset_mode", "psci")
+    delay_ms = metadata.get("probe_delay_ms", 3000)
+    require(reset_mode in ("psci", "direct"), "unknown reset mode")
     image = (args.build / "Image").read_bytes()
     require(sha(image) == metadata["probe_image_sha256"], "Image changed since build.json")
     require(sha((args.build / "recovery.img").read_bytes()) == metadata["sha256"], "recovery image changed since build.json")
     symbols, executable = elf_symbols((args.build / "probe.elf").read_bytes(), image)
     fixture = args.fixture.read_bytes()
     scenarios = [
-        Scenario("success_el1"), Scenario("success_el2", el=2), Scenario("psci_return_fallback", smc_returns=True),
+        Scenario("success_el1"), Scenario("success_el2", el=2), Scenario("direct_reset_no_psci" if reset_mode == "direct" else "psci_return_fallback", smc_returns=True),
         Scenario("bad_fdt_magic", fdt_mutation="bad_magic"), Scenario("short_fdt_header", fdt_mutation="short_header"),
         Scenario("wrong_ramoops_region", fdt_mutation="wrong_region"), Scenario("wrong_record_size", fdt_mutation="wrong_record"),
         Scenario("nonzero_ecc", fdt_mutation="nonzero_ecc"), Scenario("mmu_on_park", mmu_on=True),
@@ -431,6 +451,7 @@ def main():
         Scenario("reason_write_error", fault="reason_write_error"), Scenario("reason_readback_mismatch", fault="reason_readback_mismatch"),
         Scenario("warm_read_error_psci_return", fault="warm_read_error", smc_returns=True),
         Scenario("warm_write_error_psci_return", fault="warm_write_error", smc_returns=True),
+        Scenario("fatal_reentry_park", fault="fatal_reentry"),
     ]
     if args.case:
         scenarios = [s for s in scenarios if s.name == args.case]
@@ -440,7 +461,7 @@ def main():
     for scenario in scenarios:
         result = ProbeMachine(image, symbols, executable, fixture, scenario).run()
         try:
-            verify(scenario, result)
+            verify(scenario, result, reset_mode, delay_ms)
             result["passed"] = True
         except (AssertionError, KeyError) as exc:
             result["passed"] = False
@@ -450,6 +471,8 @@ def main():
         print(f"{'PASS' if result['passed'] else 'FAIL'} {scenario.name}: {result['outcome']}, {result['instructions']} instructions" + ("; " + result["assertion_failure"] if not result["passed"] else ""), flush=True)
     summary = {
         "unicorn_version": un.__version__, "capstone_version": cs.__version__,
+        "reset_mode": reset_mode,
+        "probe_delay_ms": delay_ms,
         "image_sha256": sha(image), "recovery_sha256": metadata["sha256"], "fixture_sha256": sha(fixture),
         "load_address": hex(IMAGE_BASE), "fixture_address": hex(DTB_BASE), "instruction_budget_per_case": MAX_INSNS,
         "passed": sum(r["passed"] for r in results), "total": len(results),

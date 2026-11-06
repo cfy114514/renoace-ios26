@@ -54,9 +54,14 @@ def unpack(data):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ndk-bin", type=Path, default=DEFAULT_NDK)
+    parser.add_argument("--reset-mode", choices=("psci", "direct"), default="psci",
+                        help="direct tests the verified PS_HOLD path without calling PSCI")
+    parser.add_argument("--delay-ms", type=int, default=3000, choices=range(1000, 8001), metavar="1000..8000")
     args = parser.parse_args()
     ndk = args.ndk_bin
-    output = ROOT / "out/renoace-p01"
+    output = ROOT / ("out/renoace-p01-direct" if args.reset_mode == "direct" else "out/renoace-p01")
+    if args.delay_ms != 3000:
+        output = ROOT / f"out/renoace-p01-{args.reset_mode}-{args.delay_ms}"
     output.mkdir(parents=True, exist_ok=True)
     private = ROOT / "local-device/20261106T115059Z"
     manifest = json.loads((private / "manifest.json").read_text())
@@ -85,6 +90,8 @@ def main():
     common = [ndk / "clang.exe", "--target=aarch64-none-elf", "-mcpu=cortex-a55", "-O2", "-ffreestanding",
               "-nostdlib", "-fno-builtin", "-fno-pic", "-fno-pie", "-fno-stack-protector", "-fno-jump-tables",
               "-fno-asynchronous-unwind-tables", "-mgeneral-regs-only", "-mstrict-align", "-Wall", "-Wextra", "-Werror"]
+    common.append(f"-DPROBE_DIRECT_PS_HOLD={int(args.reset_mode == 'direct')}")
+    common.append(f"-DPROBE_DELAY_MS={args.delay_ms}")
     for name in ("start.S", "probe.c"):
         obj = output / (Path(name).stem + ".o")
         run(common + ["-c", source / name, "-o", obj]); objects.append(obj)
@@ -165,7 +172,9 @@ def main():
         "header": new_header, "preserved": ["ramdisk", "recovery_dtbo", "dtb", "cmdline", "os_version", "load_addresses"],
         "dtb_copies": "gzip trailer and v2 DTB section, byte-identical to current recovery",
         "ramoops": {"address": "0xb7e00000", "max_record_bytes": "0x40000", "runtime_FDT_check_required": True},
-        "reset": "PM8150 bootloader reason + warm PS_HOLD type, PSCI after 3000ms, verified-board PS_HOLD fallback; hardware-unverified",
+        "reset_mode": args.reset_mode,
+        "probe_delay_ms": args.delay_ms,
+        "reset": "PM8150 bootloader reason + verified warm PS_HOLD type; " + (f"direct PS_HOLD after {args.delay_ms}ms, no PSCI call" if args.reset_mode == "direct" else f"PSCI after {args.delay_ms}ms with gated PS_HOLD fallback") + "; hardware-unverified",
         "early_failure": "If return setup is unverified, parks instead of looping into recovery. Manual reset may be required.",
         "avb": "fresh unsigned NONE descriptor, hash verified; acceptance by ABL is untested",
         "source_hashes": {p.name:digest(p.read_bytes()) for p in source.iterdir() if p.is_file()},

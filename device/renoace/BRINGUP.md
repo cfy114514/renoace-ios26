@@ -2,7 +2,7 @@
 
 本文件对应 PCLM10 / OP4A89 / OPPO project 19081，实机硬件事实见 `hardware.json`。这里只把已测量的事实用于配置；尚无 Reno Ace 的 XNU 启动结果。
 
-第二阶段最新结果见 [STAGE2.md](STAGE2.md)。当前 ABL 已实测不支持 `fastboot boot`；P01 诊断镜像已完成离线构建和指令测试，尚未写入手机。
+最新结果见 [STAGE3.md](STAGE3.md)。当前 ABL 已实测不支持 `fastboot boot`；已完成四轮 P01 启动试验，并逐轮恢复原 recovery。复位后保留日志损坏或缺失，仍需可靠的早期观察通道。
 
 ## 源码分工
 

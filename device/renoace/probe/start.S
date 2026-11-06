@@ -70,9 +70,13 @@ vectors:
 .global reset_now
 reset_now:
     dsb sy
+#if PROBE_DIRECT_PS_HOLD
+    b reset_fallback
+#else
     movz x0, #9
     movk x0, #0x8400, lsl #16
     smc #0
+#endif
 /* If PSCI returns, lower PS_HOLD only after C verified board and PON setup. */
 .global reset_fallback
 reset_fallback:

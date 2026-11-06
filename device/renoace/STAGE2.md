@@ -2,6 +2,8 @@
 
 日期：2026-11-06。当前系统是用户已有的 **YAAP Android 15 定制 ROM**，不是 ColorOS。实机来源始终是本机镜像、live DT 和实际运行结果；官方 OPPO 源码仅用于硬件接口交叉核对。
 
+本文是实机写入前的阶段记录。后续 ADB 修复、已授权的 recovery 试验及恢复结果以 [STAGE3.md](STAGE3.md) 为准。
+
 ## 已经发生的实机操作
 
 1. 读取并校验 ABL、XBL、persist、modemst1、modemst2、fsg、fsc 的副本，另外确认前一阶段 boot/dtbo/recovery/vbmeta 的 SHA-256 仍与手机一致。副本位置由 `local-device/bootchain-backup-latest.txt` 指向。

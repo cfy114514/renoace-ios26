@@ -158,7 +158,11 @@ static int select_bootloader(void) {
 }
 
 void probe_exception(uint64_t slot) {
-    if (exception_active++) reset_fallback();
+    /* A fault in PSCI may use PS_HOLD once; a fault in that fallback must
+     * park instead of recursively consuming the exception stack. */
+    unsigned previous_exception=exception_active++;
+    if (previous_exception>=2) probe_park();
+    if (previous_exception==1) reset_fallback();
     number("exception_slot",slot);
     if (RSR(CurrentEL)==4) { number("esr_el1",RSR(esr_el1)); number("elr_el1",RSR(elr_el1)); number("far_el1",RSR(far_el1)); }
     else { number("esr_el2",RSR(esr_el2)); number("elr_el2",RSR(elr_el2)); number("far_el2",RSR(far_el2)); }
@@ -189,5 +193,10 @@ void probe_main(uintptr_t dt) {
     number("cntfrq",RSR(cntfrq_el0)); number("delay_ms",PROBE_DELAY_MS);
     persist();
     wait_ms(PROBE_DELAY_MS);
-    text("RENOACE-P01 PSCI reset\n"); persist(); reset_now();
+#if PROBE_DIRECT_PS_HOLD
+    text("RENOACE-P01 DIRECT PS_HOLD reset\n");
+#else
+    text("RENOACE-P01 PSCI reset\n");
+#endif
+    persist(); reset_now();
 }
