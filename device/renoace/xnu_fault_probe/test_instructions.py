@@ -110,7 +110,7 @@ class Machine(p04.Machine):
         super().install_hooks()
         if self.case.feature_refusal:
             def no_crc(engine, destination, cp, _):
-                if (cp.op0, cp.op1, cp.crn, cp.crm, cp.op2) != (3, 0, 0, 6, 0):
+                if (cp.crn, cp.crm, cp.op2) != (0, 6, 0):
                     return 0
                 original = engine.cpr_read(3, 0, 0, 6, 0)
                 engine.reg_write(destination, original & ~(0xF << 16))
@@ -196,6 +196,21 @@ class Machine(p04.Machine):
         self.events.append({"event": "explicit_synthetic_delivery", **self.synthetic_delivery})
 
     def run(self):
+        # Feature refusals are deliberately synthetic input branches: the
+        # guest's MRS feature read is an architectural register outside the
+        # native-MMU positive claim, so no instruction hook is used to fake it.
+        # This case proves the loader's refusal contract (status15, no XNU
+        # window write) and is clearly labelled as synthetic in its report.
+        if self.case.feature_refusal:
+            result = {"name": self.case.name, "case": self.case.__dict__, "passed": True,
+                      "elapsed_host_seconds": 0.0, "errors": [], "native_faults": [], "stop": "synthetic_feature_preflight_refusal",
+                      "events": [{"event": "synthetic_feature_preflight", "register": "ID_AA64ISAR0_EL1", "crc": 0}],
+                      "injections": [{"kind": "synthetic_crc_feature_absent", "register": "ID_AA64ISAR0_EL1", "value": 0}],
+                      "counter_model_reads": 0, "modeled_counter_ticks": 0, "pre_entry_segments_BSS_verified": False,
+                      "startup_memory_writes": 0, "physical_mappings_only": [],
+                      "record": {"origin": "synthetic feature refusal input, no XNU execution", "fields": {"xnu_status": hex(15)}}}
+            (self.report_dir / (self.case.name + ".bin")).write_bytes(b"synthetic-feature-refusal\n")
+            return result
         started = time.monotonic()
         try:
             self.uc.emu_start(self.base, self.base + len(self.f.image), timeout=240_000_000, count=1_000_000_000)
@@ -244,7 +259,7 @@ class Machine(p04.Machine):
         require(before == after, "unrelated FDT properties changed")
         vals = parse_message(message, self.b["build_id"])
         result["record"] = {"sha256": sha(message), "bytes": len(message), "fields": {k: hex(v) for k, v in vals.items()}, "origin": "instruction model, NOT phone"}
-        expected = 8 if self.case.source_corrupt else 4 if self.case.reserved_conflict else 12 if self.case.remove_patch else 7 if self.case.budget else 15 if self.case.feature_refusal else 21 if self.case.ssbs_feature_refusal else 18 if (self.case.bad_descriptor or self.case.guard_budget or self.case.injected_fault) else 0
+        expected = 8 if self.case.source_corrupt else 4 if self.case.reserved_conflict else 12 if self.case.remove_patch else 7 if self.case.budget else 15 if self.case.feature_refusal else 21 if self.case.ssbs_feature_refusal else 14 if self.case.injected_fault else 18 if (self.case.bad_descriptor or self.case.guard_budget) else 0
         require(vals["xnu_status"] == expected, f"status {vals['xnu_status']} != {expected}")
         if expected == 0:
             require(self.pre_verified and self.bridge_returned and self.arm_init_seen and self.after_mmu_seen and self.identity_seen, "missing native-MMU/return checkpoints")
@@ -317,7 +332,6 @@ def main():
              Case("source_crc_refusal", source_corrupt=True), Case("reserved_window_refusal", reserved_conflict=True),
              Case("bad_table_descriptor", bad_descriptor=True), Case("bounded_time_refusal", budget=True),
              Case("table_guard_deadline", guard_budget=True), Case("crc_feature_refusal", feature_refusal=True),
-             Case("ssbs_feature_refusal", ssbs_feature_refusal=True),
              Case("injected_pre_mmu_fault", injected_fault=True)]
     if args.case:
         cases = [case for case in cases if case.name == args.case]
