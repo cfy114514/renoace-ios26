@@ -1,0 +1,98 @@
+{
+  "status": "compiled and statically verified; not phone-tested",
+  "repository": "https://github.com/cfy114514/renoace-ios26",
+  "run_url": "https://github.com/cfy114514/renoace-ios26/actions/runs/42271869198",
+  "source_commit": "02920f9cee5dc19f5d7672a902b266a54978aeb2",
+  "framework_commit": "a8b90c0c645fd62ae850cd43e80c87bab4cc157d",
+  "kernel": {
+    "path": "out/cloud-kernel/42271869198/extracted/build/renoace/kernel/mach.development.bcm2837.unstripped.noctf",
+    "sha256": "1295a653bc235d0c11d18ea7a0fc155209fd87396118196ecc8b87e8096f68b8",
+    "bytes": 23005680,
+    "format": "thin little-endian plain ARM64 Mach-O executable",
+    "memory_span": "0x16f4000",
+    "entry_va": "0xfffffff007503488",
+    "entry_file_offset": "0x4ff488",
+    "arm_init_va": "0xfffffff007b334b8"
+  },
+  "toolchain": {
+    "xcodebuild -version": "Xcode 26.6\nBuild version 17F113",
+    "xcrun --sdk iphoneos --show-sdk-version": "26.5",
+    "xcrun --sdk iphoneos --find clang": "/Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang",
+    "xcrun --sdk iphoneos clang --version": "Apple clang version 21.0.0 (clang-2100.1.1.101)\nTarget: arm64-apple-darwin25.6.0\nThread model: posix\nInstalledDir: /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin",
+    "xcrun --sdk macosx --show-sdk-version": "26.5",
+    "clang --version": "Homebrew clang version 23.1.4\nTarget: arm64-apple-darwin25.6.0\nThread model: posix\nInstalledDir: /opt/homebrew/Cellar/llvm/23.1.4/bin\nConfiguration file: /opt/homebrew/Cellar/llvm/23.1.4/etc/clang/arm64-apple-darwin25.cfg",
+    "git --version": "git version 2.56.0",
+    "cmake --version": "cmake version 4.4.5\n\nCMake suite maintained and supported by Kitware (kitware.com/cmake).",
+    "ninja --version": "1.13.2"
+  },
+  "timer19_checks": [
+    {
+      "kind": "ISENABLER0 enable mask",
+      "method": "__ZN6ArmCpu17wakeRedistributorEb",
+      "constant_instruction": {
+        "va": "0xfffffff007af420c",
+        "file_offset": "0xaf020c",
+        "bytes": "e9febf12",
+        "instruction": "mov w9, #0x8ffff"
+      },
+      "decoded_MOVN_value": "0x8ffff",
+      "store": {
+        "va": "0xfffffff007af4210",
+        "file_offset": "0xaf0210",
+        "bytes": "098100b9",
+        "instruction": "str w9, [x8, #0x80]"
+      },
+      "address_dataflow": "redist + 0x10080 + 0x80 = redist + 0x10100",
+      "expected": "SGIs 0..15 plus INTID 19; INTID27 not enabled by this mask"
+    },
+    {
+      "kind": "ISENABLER0 enable mask",
+      "method": "__ZN6ArmCpu9enableGicEv",
+      "constant_instruction": {
+        "va": "0xfffffff007af43f4",
+        "file_offset": "0xaf03f4",
+        "bytes": "eafebf12",
+        "instruction": "mov w10, #0x8ffff"
+      },
+      "decoded_MOVN_value": "0x8ffff",
+      "store": {
+        "va": "0xfffffff007af43f8",
+        "file_offset": "0xaf03f8",
+        "bytes": "2a0100b9",
+        "instruction": "str w10, [x9]"
+      },
+      "address_dataflow": "redist + 0x10100",
+      "expected": "SGIs 0..15 plus INTID 19; INTID27 not enabled by this mask"
+    },
+    {
+      "kind": "timer dispatch",
+      "method": "__ZN6ArmCpu9interruptEv",
+      "input": "ICC_IAR1_EL1 masked with0xffffff into x8",
+      "comparison": {
+        "va": "0xfffffff007af52d0",
+        "file_offset": "0xaf12d0",
+        "bytes": "1f4d00f1",
+        "instruction": "cmp x8, #0x13"
+      },
+      "branch": {
+        "va": "0xfffffff007af52d4",
+        "file_offset": "0xaf12d4",
+        "bytes": "e0fbff54",
+        "instruction": "b.eq #0xfffffff007af5250"
+      },
+      "handler_symbol": "_rtclock_intr",
+      "handler_va": "0xfffffff00750dd64",
+      "handler_call": {
+        "va": "0xfffffff007af5288",
+        "file_offset": "0xaf1288",
+        "bytes": "b762e897",
+        "instruction": "bl #0xfffffff00750dd64"
+      }
+    }
+  ],
+  "hardware_tested": false,
+  "limitations": [
+    "No fresh-kernel MMU/arm_init/IRQ/scheduler startup or iOS userland execution established.",
+    "The successful P03 phone test used the separately pinned earlier kernel and seven-instruction return gate."
+  ]
+}

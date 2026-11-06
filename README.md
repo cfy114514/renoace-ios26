@@ -2,7 +2,7 @@
 
 2026-11-07：以 **UniXNU 的 iOS 26 / 普通 arm64 兼容分支**作为研究主线，结合 `UniXNU-zeta` 的转换方案、`ios-flame` 的 SM8150 驱动及 OPPO 官方 19081 源码交叉适配。
 
-当前完成：项目调查、备份、ADB 修复、P01 复位对照、Reno Ace 定时器源代码适配、P02 有效实机日志，以及 **P03 实机完整装载校验和七条 XNU 原始入口指令的受控返回**。第二次 P03 在约5.73秒内通过，随后继续启动 YAAP；第一次五秒预算拒绝保留为对照。每轮均恢复并核验原 recovery。**完整 XNU/iOS 仍未启动。**
+当前完成：项目调查、备份、ADB 修复、P01 复位对照、P02 有效实机日志，以及 **P03 实机完整装载校验和七条 XNU 原始入口指令的受控返回**。第二次 P03 在约5.73秒内通过，随后继续启动 YAAP；第一次五秒预算拒绝保留为对照。另已完成 **Reno Ace 专用 XNU 云编译，并核实 INTID19 修改进入机器码**。新内核尚未实机执行。每轮手机测试均恢复并核验原 recovery。**完整 XNU/iOS 仍未启动。**
 
 离线验证：P01 实际 ARM64 指令模型17项、XNU 装载布局/ADT/boot_args 校验10项、P03 完整装载模型9项和独立内存操作190项通过。模型与布局检查不等于手机启动证明。
 
@@ -12,7 +12,7 @@
 - [P01 实机结果与恢复记录](device/renoace/STAGE3.md)
 - [P02 实机日志桥接成功](device/renoace/STAGE4.md)
 - [P03 实机入口控制与装载预算记录](device/renoace/STAGE5.md)
-- [专用内核云构建与 MMU 交接准备](device/renoace/STAGE6.md)
+- [专用内核云编译成功与 MMU 交接准备](device/renoace/STAGE6.md)
 - [实机硬件参数](device/renoace/hardware.json)
 - [设备配置](device/renoace/board.toml)
 - [源码版本记录](sources.lock.json)

@@ -13,6 +13,8 @@ to this source in the existing order. `unixnu status -D device/renoace` must
 resolve `driver ArmCpu` to this device module before a fresh kernel build.
 
 Validation: the complete upstream five-patch sequence applies to this source.
-No fresh XNU kernel has yet been compiled with the override, and IRQ delivery
-has not been tested on the phone. The downloaded candidate kernel is unchanged
-and still contains the original INTID 27, so it remains an early-entry control.
+CI run 42271869198 compiled the override into the new kernel, SHA-256
+`1295a653bc235d0c11d18ea7a0fc155209fd87396118196ecc8b87e8096f68b8`.
+Static instruction inspection confirms both enable masks are `0x0008ffff`
+and interrupt 19 dispatches to `rtclock_intr`; IRQ delivery remains untested
+on the phone. The separately preserved P03 candidate still uses INTID27.
