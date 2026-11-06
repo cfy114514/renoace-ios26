@@ -10,3 +10,4 @@
 *.json text eol=lf
 *.plist text eol=lf
 *.ps1 text eol=lf
+*.patch -whitespace
