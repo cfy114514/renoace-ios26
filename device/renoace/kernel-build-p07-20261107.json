@@ -1,0 +1,32 @@
+{
+  "status": "compiled, statically verified and controlled phone execution through complete arm_vm_init return; full kernel/iOS not booted",
+  "repository": "https://github.com/cfy114514/renoace-ios26",
+  "run_url": "https://github.com/cfy114514/renoace-ios26/actions/runs/42306878464",
+  "source_commit": "f5ac9b1a95c85a9b9b7b66461016c295dd4952bd",
+  "kernel": {
+    "path": "out/cloud-kernel/42306878464/extracted/build/renoace/kernel/mach.development.bcm2837.unstripped.noctf",
+    "sha256": "c361eda7d383619ec76c814a4f2121955547fadaa8235131d6849aa14d995743",
+    "bytes": 23005792,
+    "arm_init_va": "0xfffffff007b33594",
+    "full_arm_vm_init_return_va": "0xfffffff007b33e34"
+  },
+  "device_patch_sha256": "b971f39f86c44ea65f6c5f3e546764744bff51eb0dd3c9622f29592469f0ec8c",
+  "patch_module_sha256": "12bd1cd12611540e4ad5f046ba1ec1f18f9fb5e40046c329230fc561ff0a9ce0",
+  "independent_static_checks": 32,
+  "validation_report_sha256": "14ea09a2161c2c81ef495d828e5b9f9f09530fac56eaade3915b1cae513cd2ba",
+  "limitations": [
+    "Object SHA256 values are CI attestations; object bytes not uploaded",
+    "Runtime USB control, actual timer delivery, scheduler/IOKit and iOS startup are not established by compilation"
+  ],
+  "phone": {
+    "build_id": "c3ff699044755a00",
+    "Image_sha256": "358a8102881d6ae15c9c5ade779bf5bf366ec2f4463101303a8e7d9488e95363",
+    "carrier_sha256": "f46219ec98563f7c081cdf25c9be82ccf11996e7e336b50d7e3e3746a99f915f",
+    "record_sha256": "d383e0b46133f7cb436b4936d7a27a8389e2bed6bd2f8ef29b84958837d2139b",
+    "record_bytes": 5504,
+    "full_arm_vm_init_verified": true,
+    "normal_system_and_original_recovery_restored": true,
+    "XNU_runtime_USB_connection_verified": false,
+    "private_observation_patch_count": 121
+  }
+}

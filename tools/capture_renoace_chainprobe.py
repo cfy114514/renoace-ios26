@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read and verify P02-P06 FDT records. No reboot, image write or driver change."""
+"""Read and verify P02-P07 FDT records. No reboot, image write or driver change."""
 import argparse
 import base64
 from datetime import datetime, timezone
@@ -31,7 +31,7 @@ XNU_STATUS_NAMES = {
     16: "bridge_crc_mismatch", 17: "argument_or_adt_mismatch", 18: "mmu_bridge_refused_or_faulted",
     19: "bridge_configuration_changed", 20: "observer_layout_refused",
     21: "unsupported_exception_feature_refused",
-    22: "simd_state_mismatch", 23: "early_c_witness_mismatch",
+    22: "simd_state_mismatch", 23: "early_c_witness_mismatch", 24: "full_vm_witness_mismatch",
 }
 XNU_DIAGNOSTIC_FIELDS = {
     "xnu_budget_ms", "xnu_phase", "xnu_segment", "xnu_phase_bytes", "xnu_phase_total", "xnu_phase_ticks",
@@ -59,15 +59,19 @@ c_fpsr_before c_fpsr_after c_pe_initialized c_pe_dt_head c_pe_boot_args c_pe_dt_
 c_dt_end c_dt_initialized c_soc_base c_timebase_frequency c_dec_clock_rate c_boot_args_global_verified""".split())
 
 
+VM_FIELDS = set("vm_gate_entered vm_gate_kind vm_gate_pc vm_ttbr0 vm_ttbr1 vm_cntkctl vm_nzcv vm_daif vm_sctlr vm_tcr vm_mair vm_restored_ttbr0 vm_restored_ttbr1 vm_gate_completed restored_cntkctl vm_avail_start vm_first_avail vm_kva_active vm_cpu_tte vm_invalid_tte vm_physmap_base vm_physmap_end vm_soc_valid vm_gate_leaf vm_blob_leaf vm_verified vm_saved_cntkctl".split())
+
+
 def parse_record(data, expected_build, build=None):
     is_xnu = bool(build and "xnu" in build)
     is_mmu = bool(is_xnu and "bridge" in build["xnu"])
     is_fault = bool(is_mmu and build["xnu"].get("expected_exception"))
+    is_vm = bool(is_mmu and build["xnu"].get("mode","").startswith("full-arm-vm-init"))
     is_c_init = bool(is_mmu and build["xnu"].get("checkpoint") and not is_fault)
     if not 32 <= len(data) <= (8192 if is_mmu else 4096) or not data.endswith(b"\0") or b"\0" in data[:-1]:
         raise ValueError("record length or NUL termination is invalid")
     lines = data[:-1].splitlines(keepends=True)
-    magic = b"RENOACE-XNU-C-INIT-P06\n" if is_c_init else b"RENOACE-XNU-EXCEPTION-P05\n" if is_fault else b"RENOACE-XNU-MMU-P04\n" if is_mmu else b"RENOACE-XNU-ENTRY-P03\n" if is_xnu else b"RENOACE-CHAINPROBE-P02\n"
+    magic = b"RENOACE-XNU-VM-P07\n" if is_vm else b"RENOACE-XNU-C-INIT-P06\n" if is_c_init else b"RENOACE-XNU-EXCEPTION-P05\n" if is_fault else b"RENOACE-XNU-MMU-P04\n" if is_mmu else b"RENOACE-XNU-ENTRY-P03\n" if is_xnu else b"RENOACE-CHAINPROBE-P02\n"
     allowed = FIELDS | XNU_FIELDS if is_xnu else FIELDS
     if is_mmu:
         allowed |= MMU_FIELDS
@@ -75,8 +79,10 @@ def parse_record(data, expected_build, build=None):
         allowed |= MMU_EXCEPTION_FIELDS
     if is_c_init:
         allowed |= C_INIT_FIELDS
+    if is_vm:
+        allowed |= VM_FIELDS
     diagnostics = build["xnu"].get("diagnostics_version", 0) if is_xnu else 0
-    if diagnostics not in (0, 1) and not (is_c_init and diagnostics == 2):
+    if diagnostics not in (0, 1) and not (is_c_init and diagnostics == (3 if is_vm else 2)):
         raise ValueError("unsupported XNU diagnostic schema")
     if diagnostics:
         allowed = allowed | XNU_DIAGNOSTIC_FIELDS
@@ -138,12 +144,17 @@ def parse_record(data, expected_build, build=None):
                                 mmu_observer_pc=link+layout["XNU_BLOB_OFFSET"]+layout["XNU_BRIDGE_FAULT_COMMON_OFFSET"])
             if is_c_init:
                 expected.pop("xnu_x0", None);expected.pop("xnu_x21", None)
-                expected.update({"xnu_gate": base+layout["XNU_CHECKPOINT_OFFSET"], "xnu_x20": layout["XNU_CONST_BOOT_ARGS_VA"],
+                expected.update({"xnu_gate": base+layout["XNU_CHECKPOINT_OFFSET"], "xnu_x20": layout["XNU_EXPECTED_OBS_X20"],
                     "mmu_x30": link+layout["XNU_CHECKPOINT_OFFSET"], "mmu_sp_el0": layout["XNU_OBS_SP0_VA"], "mmu_sp_el1": layout["XNU_OBS_SP1_VA"],
                     "c_fp_saved": 1, "c_fp_verified": 1, "c_pe_initialized": 1, "c_dt_initialized": 1, "c_boot_args_global_verified": 1,
                     "c_pe_dt_head": link+layout["XNU_ADT_OFFSET"], "c_pe_boot_args": layout["XNU_CONST_BOOT_ARGS_VA"], "c_pe_dt_size": layout["XNU_ADT_SIZE"],
                     "c_dt_root": link+layout["XNU_ADT_OFFSET"], "c_dt_size": layout["XNU_ADT_SIZE"], "c_dt_end": link+layout["XNU_ADT_OFFSET"]+layout["XNU_ADT_SIZE"],
                     "c_soc_base": 0, "c_timebase_frequency": 19200000, "c_dec_clock_rate": 19200000})
+            if is_vm:
+                expected.update(xnu_x21=layout["XNU_EXPECTED_OBS_X21"],vm_gate_entered=1,vm_gate_completed=1,vm_gate_kind=0xffffffffffffffff,
+                    vm_gate_pc=layout["XNU_VM_GATE_VA"],vm_ttbr0=layout["XNU_VM_INVALID_ROOT_PA"],vm_ttbr1=layout["XNU_VM_CPU_ROOT_PA"],
+                    vm_tcr=layout["XNU_EXPECTED_TCR"],vm_mair=layout["XNU_EXPECTED_MAIR"],vm_kva_active=1,vm_soc_valid=1,vm_verified=1,
+                    vm_restored_ttbr0=base+layout["XNU_BOOTSTRAP_OFFSET"],vm_restored_ttbr1=base+layout["XNU_BOOTSTRAP_OFFSET"]+0x1000)
         else:
             expected.update(xnu_gate=base+layout["XNU_GATE_OFFSET"], xnu_x0=base+layout["XNU_VECTOR_OFFSET"])
         failures = [key for key, value in expected.items() if fields[key] != value]
@@ -162,6 +173,15 @@ def parse_record(data, expected_build, build=None):
                 peer={"q_before_crc32":"q_after_crc32", "fpcr_before":"fpcr_after", "fpsr_before":"fpsr_after"}[name]
                 if fields["c_"+name] != fields["c_"+peer]:
                     failures.append(name+" SIMD restoration")
+        if is_vm:
+            if fields["vm_first_avail"] != fields["vm_avail_start"] or not (layout["XNU_VM_CPU_ROOT_PA"] < fields["vm_first_avail"] <= layout["XNU_VM_MAX_ALLOC_PA"]) or fields["vm_first_avail"] & 0xfff:
+                failures.append("VM allocation envelope")
+            if fields["vm_saved_cntkctl"] != fields["restored_cntkctl"]:
+                failures.append("CNTKCTL restored state")
+            if fields["vm_sctlr"] & 0x1005 != 0x1005:
+                failures.append("VM native MMU/cache state")
+            if (fields["vm_gate_leaf"] >> 53) & 1 or not (fields["vm_blob_leaf"] >> 53) & 1:
+                failures.append("VM gate RX and old blob NX")
         if is_mmu:
             for key in ("mmu_sctlr", "mmu_after_mmu_sctlr"):
                 if fields[key] & 0x1005 != 0x1005:
@@ -220,6 +240,10 @@ def parse_record(data, expected_build, build=None):
             result.update(xnu_c_init_verified=not failures, verification_kind="first_PE_false_return",
                           checkpoint="first_PE_false_return" if not failures else None,
                           scope="original early arm_init C through first PE_init_platform(FALSE,args) return with private zero-base compatibility; no later scheduler/IOKit/iOS startup established")
+        if is_vm:
+            result.update(xnu_vm_verified=not failures,verification_kind="full_arm_vm_init_return",
+                          checkpoint="full_arm_vm_init_return" if not failures else None,
+                          scope="original complete arm_vm_init, new native roots and RX recovery gate; full kernel/IOKit/drivers/iOS startup not established")
     return result
 
 
