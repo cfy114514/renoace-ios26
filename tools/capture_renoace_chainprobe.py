@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read and verify P02/P03 FDT records. No reboot, image write or driver change."""
+"""Read and verify P02/P03/P04 FDT records. No reboot, image write or driver change."""
 import argparse
 import base64
 from datetime import datetime, timezone
@@ -28,6 +28,8 @@ XNU_STATUS_NAMES = {
     9: "original_gate_mismatch", 10: "segment_extent_refused", 11: "loaded_data_mismatch",
     12: "private_gate_refused", 13: "entry_did_not_return", 14: "entry_capture_mismatch",
     15: "crc_instructions_unavailable",
+    16: "bridge_crc_mismatch", 17: "argument_or_adt_mismatch", 18: "mmu_bridge_refused_or_faulted",
+    19: "bridge_configuration_changed", 20: "observer_layout_refused",
 }
 XNU_DIAGNOSTIC_FIELDS = {
     "xnu_budget_ms", "xnu_phase", "xnu_segment", "xnu_phase_bytes", "xnu_phase_total", "xnu_phase_ticks",
@@ -36,15 +38,30 @@ XNU_DIAGNOSTIC_FIELDS = {
 }
 XNU_PHASE_NAMES = {0: "not_started", 1: "source_crc", 2: "cache_invalidation", 3: "segment_copy",
                    4: "bss_zero", 5: "copied_segment_crc", 6: "bss_readback", 7: "arguments_and_gate", 8: "entry_call"}
+MMU_FIELDS = set("""
+mmu_context_pa mmu_blob_crc32 mmu_adt_crc32 mmu_config_verified mmu_state_verified
+mmu_status mmu_phase mmu_entered mmu_returned mmu_guard_entered mmu_guard_passed mmu_guard_checks
+mmu_guard_failure_va mmu_guard_failure_descriptor mmu_observer_pc mmu_identity_pc mmu_x30
+mmu_sp_el0 mmu_sp_el1 mmu_spsel mmu_sctlr mmu_tcr mmu_ttbr0 mmu_ttbr1 mmu_mair mmu_vbar
+mmu_par_code mmu_par_args mmu_par_sp0 mmu_par_sp1 mmu_par_identity
+mmu_after_mmu_pc mmu_after_mmu_sctlr mmu_after_mmu_vbar mmu_exception_slot mmu_fault_depth
+mmu_esr mmu_far mmu_elr mmu_spsr mmu_guard_ttbr0 mmu_guard_ttbr1
+mmu_restored_tcr mmu_saved_tcr mmu_restored_ttbr0 mmu_saved_ttbr0 mmu_restored_ttbr1 mmu_saved_ttbr1
+mmu_restored_mair mmu_saved_mair mmu_restored_sp0 mmu_saved_sp0 mmu_restored_sp1 mmu_saved_sp1
+mmu_restored_spsel mmu_saved_spsel mmu_bootstrap_fatal mmu_budget_expired
+""".split())
 
 
 def parse_record(data, expected_build, build=None):
-    if not 32 <= len(data) <= 4096 or not data.endswith(b"\0") or b"\0" in data[:-1]:
+    is_xnu = bool(build and "xnu" in build)
+    is_mmu = bool(is_xnu and "bridge" in build["xnu"])
+    if not 32 <= len(data) <= (8192 if is_mmu else 4096) or not data.endswith(b"\0") or b"\0" in data[:-1]:
         raise ValueError("record length or NUL termination is invalid")
     lines = data[:-1].splitlines(keepends=True)
-    is_xnu = bool(build and "xnu" in build)
-    magic = b"RENOACE-XNU-ENTRY-P03\n" if is_xnu else b"RENOACE-CHAINPROBE-P02\n"
+    magic = b"RENOACE-XNU-MMU-P04\n" if is_mmu else b"RENOACE-XNU-ENTRY-P03\n" if is_xnu else b"RENOACE-CHAINPROBE-P02\n"
     allowed = FIELDS | XNU_FIELDS if is_xnu else FIELDS
+    if is_mmu:
+        allowed |= MMU_FIELDS
     diagnostics = build["xnu"].get("diagnostics_version", 0) if is_xnu else 0
     if diagnostics not in (0, 1):
         raise ValueError("unsupported XNU diagnostic schema")
@@ -81,9 +98,45 @@ def parse_record(data, expected_build, build=None):
                     "xnu_copied": sum(s["fil"] for s in build["xnu"]["segments"]),
                     "xnu_zeroed": sum(s["mem"]-s["fil"] for s in build["xnu"]["segments"]),
                     "xnu_args": base+layout["XNU_ARGS_OFFSET"], "xnu_entry": base+layout["XNU_ENTRY_OFFSET"],
-                    "xnu_gate": base+layout["XNU_GATE_OFFSET"], "xnu_x0": base+layout["XNU_VECTOR_OFFSET"],
                     "xnu_x20": base+layout["XNU_ARGS_OFFSET"], "xnu_x21": 0}
+        if is_mmu:
+            link, blob = layout["XNU_LINK_BASE"], base+layout["XNU_BLOB_OFFSET"]
+            expected.update({"xnu_gate": base+layout["XNU_ARM_INIT_OFFSET"], "xnu_x0": link+layout["XNU_ARGS_OFFSET"],
+                "mmu_context_pa": blob+layout["XNU_BRIDGE_CONTEXT_OFFSET"],
+                "mmu_blob_crc32": layout["XNU_BRIDGE_CRC32"], "mmu_adt_crc32": layout["XNU_ADT_CRC32"],
+                "mmu_config_verified": 1, "mmu_state_verified": 1,
+                "mmu_status": 1, "mmu_phase": 7, "mmu_entered": 1, "mmu_returned": 1,
+                "mmu_guard_entered": 1, "mmu_guard_passed": 1,
+                "mmu_guard_checks": build["xnu"]["bridge"]["guard_expected_pairs"],
+                "mmu_observer_pc": link+layout["XNU_BLOB_OFFSET"]+layout["XNU_BRIDGE_OBSERVER_OFFSET"],
+                "mmu_identity_pc": blob+layout["XNU_BRIDGE_IDENTITY_OFFSET"],
+                "mmu_after_mmu_pc": blob+layout["XNU_BRIDGE_AFTER_MMU_OFFSET"],
+                "mmu_x30": link+layout["XNU_ARM_INIT_OFFSET"],
+                "mmu_sp_el0": layout["XNU_SP0_VA"], "mmu_sp_el1": layout["XNU_SP1_VA"], "mmu_spsel": 0,
+                "mmu_tcr": layout["XNU_EXPECTED_TCR"], "mmu_mair": layout["XNU_EXPECTED_MAIR"],
+                "mmu_ttbr0": base+layout["XNU_BOOTSTRAP_OFFSET"], "mmu_ttbr1": base+layout["XNU_BOOTSTRAP_OFFSET"]+0x1000,
+                "mmu_guard_ttbr0": base+layout["XNU_BOOTSTRAP_OFFSET"], "mmu_guard_ttbr1": base+layout["XNU_BOOTSTRAP_OFFSET"]+0x1000,
+                "mmu_vbar": link+layout["XNU_HIGH_VECTORS_OFFSET"], "mmu_after_mmu_vbar": link+layout["XNU_HIGH_VECTORS_OFFSET"],
+                "mmu_exception_slot": 0xffffffffffffffff, "mmu_fault_depth": 0, "mmu_bootstrap_fatal": 0, "mmu_budget_expired": 0})
+        else:
+            expected.update(xnu_gate=base+layout["XNU_GATE_OFFSET"], xnu_x0=base+layout["XNU_VECTOR_OFFSET"])
         failures = [key for key, value in expected.items() if fields[key] != value]
+        if is_mmu:
+            for key in ("mmu_sctlr", "mmu_after_mmu_sctlr"):
+                if fields[key] & 0x1005 != 0x1005:
+                    failures.append(key+" MMU/cache state")
+            witnesses = {"code": (fields["mmu_observer_pc"], blob+layout["XNU_BRIDGE_OBSERVER_OFFSET"]),
+                         "args": (fields["xnu_x0"], expected["xnu_args"]),
+                         "sp0": (layout["XNU_SP0_VA"]-16, base+layout["XNU_SP0_VA"]-16-link),
+                         "sp1": (layout["XNU_SP1_VA"]-16, base+layout["XNU_SP1_VA"]-16-link),
+                         "identity": (fields["mmu_identity_pc"], fields["mmu_identity_pc"])}
+            for name, (va, pa) in witnesses.items():
+                par = fields["mmu_par_"+name]
+                if par & 1 or ((par & 0x000000fffffff000) | (va & 0xfff)) != pa:
+                    failures.append(name+" translation witness")
+            for name in ("tcr", "ttbr0", "ttbr1", "mair", "sp0", "sp1", "spsel"):
+                if fields["mmu_restored_"+name] != fields["mmu_saved_"+name]:
+                    failures.append(name+" restored state")
         for name in ("sp", "vbar", "sctlr", "nzcv", "daif"):
             if fields["xnu_"+name+"_before"] != fields["xnu_"+name+"_after"]:
                 failures.append(name+" restoration")
@@ -108,10 +161,13 @@ def parse_record(data, expected_build, build=None):
                           xnu_stage_seconds={name: fields["xnu_"+name+"_ticks"]/fields["cntfrq"] for name in
                                              ("source_crc", "cache", "copy", "zero", "verify_crc", "verify_zero")})
         result.update(xnu_entry_verified=not failures, xnu_verification_failures=failures,
-                      xnu_instruction_count=7 if not failures else None,
+                      xnu_instruction_count=7 if not failures and not is_mmu else None,
                       xnu_status_name=XNU_STATUS_NAMES.get(fields["xnu_status"], "unknown"),
                       xnu_elapsed_seconds=fields["xnu_elapsed_ticks"]/fields["cntfrq"],
-                      scope="bounded original XNU entry only; full kernel/MMU/iOS startup not established")
+                      scope=("real bootstrap through MMU enable and arm_init entry; arm_init C body and iOS startup not established" if is_mmu else
+                             "bounded original XNU entry only; full kernel/MMU/iOS startup not established"))
+        if is_mmu:
+            result.update(xnu_mmu_verified=not failures, checkpoint="arm_init_entry" if not failures else None)
     return result
 
 
