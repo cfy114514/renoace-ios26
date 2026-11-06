@@ -33,7 +33,7 @@ ramdisk_offset = 0x1000000
 tags_offset = 0x100
 
 [research]
-stage = "renoace-kernel-compiled-timer19-static-verified-full-startup-pending"
+stage = "p04-native-mmu-arm-init-entry-phone-verified-C-initialization-pending"
 hardware = "hardware.json"
 userspace_strategy = "investigate zeta arm64e-to-arm64 lowering"
 firmware_status = "Project Aloha oppo-pclm10 found; UniXNU/DarwinBoot integration still required"
