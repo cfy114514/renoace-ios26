@@ -12,6 +12,7 @@
 - [P01 实机结果与恢复记录](device/renoace/STAGE3.md)
 - [P02 实机日志桥接成功](device/renoace/STAGE4.md)
 - [P03 实机入口控制与装载预算记录](device/renoace/STAGE5.md)
+- [专用内核云构建与 MMU 交接准备](device/renoace/STAGE6.md)
 - [实机硬件参数](device/renoace/hardware.json)
 - [设备配置](device/renoace/board.toml)
 - [源码版本记录](sources.lock.json)
