@@ -1,0 +1,8 @@
+out/
+local-device/
+references/
+worktrees/
+__pycache__/
+*.pyc
+*.img
+*.zip

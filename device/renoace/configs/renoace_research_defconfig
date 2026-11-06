@@ -1,0 +1,23 @@
+# Parseable research configuration only. board.example=true blocks building.
+# Hardware flags are not a claim of successful execution on Reno Ace.
+CONFIG_XNU_BUILD_SCRIPT="build-xnu-12377.sh"
+CONFIG_XNU_NATIVE_ARCH_TIMER=y
+CONFIG_XNU_VIRTUAL_TIMER_ONLY=y
+CONFIG_XNU_SOURCE_CORECRYPTO14=y
+CONFIG_XNU_SOURCE_PTHREAD=y
+CONFIG_XNU_ARM_DT_PLATFORM=y
+CONFIG_XNU_ARMCPU=y
+CONFIG_XNU_NATIVE_PAN=y
+CONFIG_XNU_DT_PANIC_REGION=y
+
+# The inherited SM8350 storage implementation is NOT an SM8150 driver.
+CONFIG_XNU_NATIVE_UFS_SM8350=n
+CONFIG_XNU_NATIVE_UFS_VERIFIED_ROOT=n
+CONFIG_XNU_NATIVE_UFS_OWNER_ROOT=n
+CONFIG_XNU_NATIVE_RAM_BLOCK=n
+CONFIG_XNU_OWNER_DATA_MOUNT=n
+
+# Enable board-specific transports only after address/clock/PHY verification.
+CONFIG_XNU_NATIVE_DWC3_CONSOLE=n
+CONFIG_XNU_NATIVE_LEGACY_DISPLAY=n
+CONFIG_XNU_BOOT_PROGRESS=n

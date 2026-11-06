@@ -1,0 +1,43 @@
+# Research profile for the measured OPPO PCLM10 / OP4A89 / project 19081.
+# No Reno Ace firmware volume or kernel has been validated yet. UniXNU's
+# example marker deliberately keeps build/bootimg disabled until bring-up.
+[board]
+name = "renoace"
+soc = "SM8150"
+description = "OPPO Reno Ace (PCLM10, OP4A89, SM8150 Plus) - research only"
+example = true
+
+[kernel]
+defconfig = "renoace_research_defconfig"
+
+# This is the release used by the pinned zeta arm64 compatibility path.
+# It is an investigation target, not a claim that this firmware boots here.
+[ipsw]
+url = "https://updates.cdn-apple.com/2026SpringFCS/fullrestores/140-26432/CF51E589-7C43-4B55-B909-CF585DAD0570/iPhone18,2_26.5.2_23F84_Restore.ipsw"
+product = "iPhone18,2"
+version = "26.5.2"
+build = "23F84"
+device_class = "v54ap"
+chip_id = 0x8150 # Apple identity value from zeta; NOT the Qualcomm SoC ID.
+board_id = 14
+fetch = ["KernelCache", "DeviceTree", "StaticTrustCache", "Cryptex1,SystemTrustCache"]
+
+# Parsed from this phone's current Android boot partition. These describe
+# an accepted installed image, not yet a proven fastboot boot contract.
+[bootimg.image]
+header_version = 2
+pagesize = 4096
+base = 0
+kernel_offset = 0x8000
+ramdisk_offset = 0x1000000
+tags_offset = 0x100
+
+[research]
+stage = "p03-bounded-xnu-entry-and-linux-return-verified-full-startup-pending"
+hardware = "hardware.json"
+userspace_strategy = "investigate zeta arm64e-to-arm64 lowering"
+firmware_status = "Project Aloha oppo-pclm10 found; UniXNU/DarwinBoot integration still required"
+root_storage_status = "unallocated; no partition selected for iOS writes"
+installed_dtb_offset = 0x1f00000
+bootimg_blocker = "Reno Ace installed v2 image has BOTH appended and separate DTBs; generic packer lacks the separate v2 section"
+temporary_boot_status = "ABL unlocked=yes, but standard fastboot boot returns unknown command"

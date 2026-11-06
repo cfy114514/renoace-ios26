@@ -1,0 +1,72 @@
+{
+  "source_commit": "0abe79e70219db0fb3d868e59e2180c76c848a2e",
+  "scope": "minimal kernel CI source; no phone captures or workspace history",
+  "framework_commit": "a8b90c0c645fd62ae850cd43e80c87bab4cc157d",
+  "files": [
+    {
+      "path": ".gitattributes",
+      "bytes": 101,
+      "sha256": "824b5df5002f5dd790d7bd9e17fb98ff66906ae694e32d8d7cbae8258938aa1d"
+    },
+    {
+      "path": ".github/workflows/renoace-kernel.yml",
+      "bytes": 3473,
+      "sha256": "a8e99ee6c68021b172132abcb3e5cddeb097bef413ce99b98e73e457d75eb420"
+    },
+    {
+      "path": ".gitignore",
+      "bytes": 73,
+      "sha256": "49b7588122416116aae944d30a7785bd4335e2afbff3a629174898d1bdec1f93"
+    },
+    {
+      "path": "ci/README.md",
+      "bytes": 2003,
+      "sha256": "8bd734dd4c3a1154e70b3574c3538bfcb42d5d1f7625efbe4fcfb29a6290c6ce"
+    },
+    {
+      "path": "device/renoace/board.toml",
+      "bytes": 1857,
+      "sha256": "a96ad9c6942ca5db3a38d249dfddc50a5926047e6e64cc70d29b7bd574cd9f68"
+    },
+    {
+      "path": "device/renoace/configs/renoace_research_defconfig",
+      "bytes": 828,
+      "sha256": "7ccd2e6dc6ce82c3cbde5c89db1aa13620010b77a991531f4579cac8f342027a"
+    },
+    {
+      "path": "device/renoace/drivers/ArmCpu/ArmCpu.cpp",
+      "bytes": 38198,
+      "sha256": "6b4e3b4d3c64cffcc706e9fd29bf0528e024adbd2b07bc509c23a92653e67ec3"
+    },
+    {
+      "path": "device/renoace/drivers/ArmCpu/Info.plist",
+      "bytes": 771,
+      "sha256": "32fd6a027cc14b497544626f96ae104cd28af8aa9b9fcbde9ef138a4b3d70547"
+    },
+    {
+      "path": "device/renoace/drivers/ArmCpu/LICENSE",
+      "bytes": 2673,
+      "sha256": "9e18e2c43ae4e51da2d11fd777b5b11056476d6ba395e5e2270467dbf02d0adf"
+    },
+    {
+      "path": "device/renoace/drivers/ArmCpu/README.md",
+      "bytes": 1026,
+      "sha256": "6211a45912260e0d6ee1efdf151979b0b51eba036d11167c167e8392c70c6b88"
+    },
+    {
+      "path": "device/renoace/feeds.toml",
+      "bytes": 1182,
+      "sha256": "32b17926332c69dfec3a6853460d67fd9f671c1e9982396e3fef2bf3f22b9c19"
+    },
+    {
+      "path": "README.md",
+      "bytes": 329,
+      "sha256": "63aabd887222751a6134b148db77470b6e18de9b137e006049650f6dc1cd2fa9"
+    },
+    {
+      "path": "tools/prepare_renoace_kernel_ci.py",
+      "bytes": 6390,
+      "sha256": "5a67fdb096459ca0967bb467d3ce826b3d5e79ce2567cc08de08c57042ec38e1"
+    }
+  ]
+}
