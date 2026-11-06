@@ -1,5 +1,5 @@
 {
-  "source_commit": "0abe79e70219db0fb3d868e59e2180c76c848a2e",
+  "source_commit": "f4306a2505bffeee7ea50dbea528b4ea9ee67c06",
   "scope": "minimal kernel CI source; no phone captures or workspace history",
   "framework_commit": "a8b90c0c645fd62ae850cd43e80c87bab4cc157d",
   "files": [
@@ -10,8 +10,8 @@
     },
     {
       "path": ".github/workflows/renoace-kernel.yml",
-      "bytes": 3473,
-      "sha256": "a8e99ee6c68021b172132abcb3e5cddeb097bef413ce99b98e73e457d75eb420"
+      "bytes": 3428,
+      "sha256": "f2451e5619dcff46c028c413308fda7d9ec885a43bd9aab64fe492e361500e0c"
     },
     {
       "path": ".gitignore",
