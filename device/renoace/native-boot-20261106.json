@@ -1,0 +1,39 @@
+{
+  "observed_date": "2026-11-06",
+  "device": "PCLM10 / OP4A89 / project19081",
+  "scope": "boot CPU only; P02 bridge, not XNU",
+  "record_sha256": "f73bf2462fc7f93c51047228d950a13af03a9af4b89b442f4c75039aa818edcf",
+  "build_id": "897f37d63f898a20",
+  "evidence": "local-device/p02-chain-20261106T152335Z/chain-log/record.json",
+  "registers": {
+    "image": "0xa8880000",
+    "original_dtb": "0xb0488000",
+    "log_dtb": "0xac080000",
+    "initrd_start": "0xb0689000",
+    "initrd_end": "0xb07fedd7",
+    "current_el": "0x1",
+    "midr": "0x51df805e",
+    "mpidr": "0x81000000",
+    "isar0": "0x100010211120",
+    "isar1": "0x100001",
+    "mmfr0": "0x101122",
+    "mmfr1": "0x10212122",
+    "cntfrq": "0x124f800"
+  },
+  "derived": {
+    "exception_level": 1,
+    "timer_hz": 19200000,
+    "pauth_fields": {
+      "APA": 0,
+      "API": 0,
+      "GPA": 0,
+      "GPI": 0
+    },
+    "mmfr0_fields": {
+      "PARange": 2,
+      "TGran16": 1,
+      "TGran4": 0
+    },
+    "note": "Feature encodings from actual bootCPU; othercores notsampled. Memory ownership outside recorded DT still requires normal boot-contract checks."
+  }
+}
