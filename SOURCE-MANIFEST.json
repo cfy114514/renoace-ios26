@@ -1,17 +1,17 @@
 {
-  "source_commit": "39434569cc0631f4cb687a1965dd7931291f3f16",
+  "source_commit": "d5b51b67ad5a71c44e4c7aee400a60b7708237bf",
   "scope": "minimal kernel CI source; no phone captures or workspace history",
   "framework_commit": "a8b90c0c645fd62ae850cd43e80c87bab4cc157d",
   "files": [
     {
       "path": ".gitattributes",
-      "bytes": 101,
-      "sha256": "824b5df5002f5dd790d7bd9e17fb98ff66906ae694e32d8d7cbae8258938aa1d"
+      "bytes": 121,
+      "sha256": "7f10177cda2c9c1c5a37a0cff3d0685b0598633d615868877814bee5182b35b1"
     },
     {
       "path": ".github/workflows/renoace-kernel.yml",
-      "bytes": 3428,
-      "sha256": "f2451e5619dcff46c028c413308fda7d9ec885a43bd9aab64fe492e361500e0c"
+      "bytes": 3886,
+      "sha256": "e4de15d7aa7db8b2e2e7c689492818f18feac7638d09b355cb4c5bcb8ca7a2b3"
     },
     {
       "path": ".gitignore",
@@ -19,9 +19,14 @@
       "sha256": "49b7588122416116aae944d30a7785bd4335e2afbff3a629174898d1bdec1f93"
     },
     {
+      "path": "README.md",
+      "bytes": 522,
+      "sha256": "bd4815be8de86b9802257e37d3dd35aa0f91a2ae3fc08de6dde96f22283ed0a0"
+    },
+    {
       "path": "ci/README.md",
-      "bytes": 2741,
-      "sha256": "683349f2b1a1fdb44076456ff90779b65fa7f6236db327244dd84b8a43997b41"
+      "bytes": 4719,
+      "sha256": "55277621c5f862582a54c3b58ff705cd664f2f263aa0ae60b0371f258761d0b4"
     },
     {
       "path": "device/renoace/board.toml",
@@ -59,14 +64,17 @@
       "sha256": "32b17926332c69dfec3a6853460d67fd9f671c1e9982396e3fef2bf3f22b9c19"
     },
     {
-      "path": "README.md",
-      "bytes": 522,
-      "sha256": "bd4815be8de86b9802257e37d3dd35aa0f91a2ae3fc08de6dde96f22283ed0a0"
+      "path": "device/renoace/patches/native-arm-io-zero-base.patch",
+      "bytes": 5211,
+      "sha256": "b971f39f86c44ea65f6c5f3e546764744bff51eb0dd3c9622f29592469f0ec8c"
     },
     {
       "path": "tools/prepare_renoace_kernel_ci.py",
-      "bytes": 6390,
-      "sha256": "5a67fdb096459ca0967bb467d3ce826b3d5e79ce2567cc08de08c57042ec38e1"
+      "bytes": 12895,
+      "sha256": "252a03f40f87396e88cc31d0e1d9c3a033281418064755b30a7be15e498f96c5"
     }
-  ]
+  ],
+  "xnu_commit": "ac9718fb1af618d5ce8678d0dc6e8a58f252216f",
+  "device_patch_sha256": "b971f39f86c44ea65f6c5f3e546764744bff51eb0dd3c9622f29592469f0ec8c",
+  "effective_patch_module_sha256": "12bd1cd12611540e4ad5f046ba1ec1f18f9fb5e40046c329230fc561ff0a9ce0"
 }

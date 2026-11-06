@@ -61,16 +61,17 @@ jobs:
 
       - name: Select the Reno Ace configuration
         run: |
-          python out/ci-framework/unixnu defconfig renoace_research_defconfig -D "$RENOACE_CI_OUT/device" --out "$RENOACE_CI_OUT/build" -j 2
-          python out/ci-framework/unixnu status -D "$RENOACE_CI_OUT/device" --out "$RENOACE_CI_OUT/build" -j 2
+          python out/ci-framework/unixnu defconfig renoace_research_defconfig -D "$RENOACE_CI_OUT/device" --out "$RENOACE_CI_OUT/build" --local-module "patch:xnu-12377=$GITHUB_WORKSPACE/$RENOACE_CI_OUT/patch-modules/xnu-12377" -j 2
+          python out/ci-framework/unixnu status -D "$RENOACE_CI_OUT/device" --out "$RENOACE_CI_OUT/build" --local-module "patch:xnu-12377=$GITHUB_WORKSPACE/$RENOACE_CI_OUT/patch-modules/xnu-12377" -j 2
 
       - name: Fetch pinned kernel sources
-        run: python out/ci-framework/unixnu fetch xnu libplatform libdispatch AvailabilityVersions libpthread corecrypto-2023 IOStorageFamily -D "$RENOACE_CI_OUT/device" --out "$RENOACE_CI_OUT/build" -j 2
+        run: python out/ci-framework/unixnu fetch xnu libplatform libdispatch AvailabilityVersions libpthread corecrypto-2023 IOStorageFamily -D "$RENOACE_CI_OUT/device" --out "$RENOACE_CI_OUT/build" --local-module "patch:xnu-12377=$GITHUB_WORKSPACE/$RENOACE_CI_OUT/patch-modules/xnu-12377" -j 2
 
       - name: Build only the unprelinked kernel
         run: |
-          python out/ci-framework/unixnu build kernel -D "$RENOACE_CI_OUT/device" --out "$RENOACE_CI_OUT/build" -j 2
+          python out/ci-framework/unixnu build kernel -D "$RENOACE_CI_OUT/device" --out "$RENOACE_CI_OUT/build" --local-module "patch:xnu-12377=$GITHUB_WORKSPACE/$RENOACE_CI_OUT/patch-modules/xnu-12377" -j 2
           test -s "$RENOACE_CI_OUT/build/renoace/kernel/mach.development.bcm2837.unstripped.noctf"
+          python tools/prepare_renoace_kernel_ci.py --output "$RENOACE_CI_OUT" --verify-build
 
       - name: Collect configuration, toolchain and logs
         if: always()

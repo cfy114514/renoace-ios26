@@ -1,0 +1,145 @@
+From: Reno Ace platform bring-up
+Subject: [PATCH] arm: distinguish available arm-io physical base zero
+
+Base: apple-oss-distributions/xnu ac9718fb1af618d5ce8678d0dc6e8a58f252216f
+Keep the measured identity bus and validate its single 64-bit range before
+publishing the early-boot cache.  Leave the CPU/bus ratio unknown when the
+bus frequency is absent instead of dividing by zero.  Later interrupt and
+serial MMIO paths still require a board-driver review.
+
+diff --git a/pexpert/arm/pe_identify_machine.c b/pexpert/arm/pe_identify_machine.c
+index 937ce42df60f44eccb8885281d8e8ee621b2910f..a45f0d5ddc0b347aba102b3433fe284322475572 100644
+--- a/pexpert/arm/pe_identify_machine.c
++++ b/pexpert/arm/pe_identify_machine.c
+@@ -19,9 +19,9 @@
+ /* External declarations */
+ extern void clean_mmu_dcache(void);
+ 
+-static char    *gPESoCDeviceType;
+ static char     gPESoCDeviceTypeBuffer[SOC_DEVICE_TYPE_BUFFER_SIZE];
+ static vm_offset_t gPESoCBasePhys;
++static bool     gPESoCBasePhysValid;
+ 
+ static uint32_t pe_arm_init_timer(void *args);
+ 
+@@ -42,7 +42,7 @@
+ 
+ 	(void)bootArgs;
+ 
+-	if (pe_arm_get_soc_base_phys() == 0) {
++	if (!pe_arm_get_soc_base_phys_checked(NULL)) {
+ 		return;
+ 	}
+ 
+@@ -150,7 +150,9 @@
+ 	gPEClockFrequencyInfo.bus_clock_rate_num = gPEClockFrequencyInfo.bus_clock_rate_hz;
+ 	gPEClockFrequencyInfo.bus_clock_rate_den = 1;
+ 
++	/* An absent bus-frequency leaves the rate unknown (zero). */
+ 	gPEClockFrequencyInfo.bus_to_cpu_rate_num =
++	    gPEClockFrequencyInfo.bus_clock_rate_hz == 0 ? 0 :
+ 	    (2 * gPEClockFrequencyInfo.cpu_clock_rate_hz) / gPEClockFrequencyInfo.bus_clock_rate_hz;
+ 	gPEClockFrequencyInfo.bus_to_cpu_rate_den = 2;
+ 
+@@ -159,26 +161,67 @@
+ 	    gPEClockFrequencyInfo.bus_clock_rate_hz / gPEClockFrequencyInfo.dec_clock_rate_hz;
+ }
+ 
++/*
++ * The early-boot arm-io view is one 64-bit (child, parent, size) tuple.
++ * Its child origin must be zero because consumers add the parent base to reg.
++ * A valid physical base of zero must not be confused with an absent bus.
++ * The DT is immutable after a successful lookup; failed lookups remain retryable.
++ */
++bool
++pe_arm_get_soc_base_phys_checked(vm_offset_t *base)
++{
++	DTEntry         entryP;
++	void const      *ranges_prop;
++	uint64_t        ranges[3];
++	uint64_t const  max_phys = (vm_offset_t)~(vm_offset_t)0;
++	unsigned int    prop_size;
++	unsigned int    type_length;
++	char const      *tmpStr;
++
++	if (!gPESoCBasePhysValid) {
++		if (SecureDTFindEntry("name", "arm-io", &entryP) != kSuccess) {
++			return false;
++		}
++		if (SecureDTGetProperty(entryP, "device_type", (void const **)&tmpStr, &prop_size) != kSuccess ||
++		    tmpStr == NULL || prop_size == 0) {
++			return false;
++		}
++		for (type_length = 0; type_length < prop_size && tmpStr[type_length] != '\0'; type_length++) {
++			/* Require a nonempty string terminated within its property. */
++		}
++		if (type_length == 0 || type_length == prop_size) {
++			return false;
++		}
++		if (SecureDTGetProperty(entryP, "ranges", &ranges_prop, &prop_size) != kSuccess ||
++		    ranges_prop == NULL || prop_size != sizeof(ranges)) {
++			return false;
++		}
++		/* ADT properties are only four-byte aligned. */
++		bcopy(ranges_prop, ranges, sizeof(ranges));
++		/* Bound the complete half-open interval, including its exclusive end. */
++		if (ranges[0] != 0 || ranges[2] == 0 || ranges[1] > max_phys ||
++		    ranges[2] > max_phys - ranges[1]) {
++			return false;
++		}
++
++		/* Publish the cache only after all properties have been validated. */
++		strlcpy(gPESoCDeviceTypeBuffer, tmpStr, SOC_DEVICE_TYPE_BUFFER_SIZE);
++		gPESoCBasePhys = (vm_offset_t)ranges[1];
++		gPESoCBasePhysValid = true;
++	}
++	if (base != NULL) {
++		*base = gPESoCBasePhys;
++	}
++	return true;
++}
++
+ vm_offset_t
+ pe_arm_get_soc_base_phys(void)
+ {
+-	DTEntry         entryP;
+-	uintptr_t const *ranges_prop;
+-	uint32_t        prop_size;
+-	char const      *tmpStr;
+-
+-	if (SecureDTFindEntry("name", "arm-io", &entryP) == kSuccess) {
+-		if (gPESoCDeviceType == 0) {
+-			SecureDTGetProperty(entryP, "device_type", (void const **)&tmpStr, &prop_size);
+-			strlcpy(gPESoCDeviceTypeBuffer, tmpStr, SOC_DEVICE_TYPE_BUFFER_SIZE);
+-			gPESoCDeviceType = gPESoCDeviceTypeBuffer;
+-
+-			SecureDTGetProperty(entryP, "ranges", (void const **)&ranges_prop, &prop_size);
+-			gPESoCBasePhys = *(ranges_prop + 1);
+-		}
+-		return gPESoCBasePhys;
+-	}
+-	return 0;
++	vm_offset_t base = 0;
++
++	(void)pe_arm_get_soc_base_phys_checked(&base);
++	return base;
+ }
+ 
+ extern void     fleh_fiq_generic(void);
+diff --git a/pexpert/pexpert/arm/protos.h b/pexpert/pexpert/arm/protos.h
+index f8fcbc29ccaac72fb68afd43218e04a47299ce55..9e8f79820e52a7822bb6db295ecdda15251c0a47 100644
+--- a/pexpert/pexpert/arm/protos.h
++++ b/pexpert/pexpert/arm/protos.h
+@@ -8,6 +8,12 @@
+ extern "C" {
+ #endif /* __cplusplus */
+ 
++/*
++ * A successful arm-io lookup may return physical base zero.
++ * Pass NULL for a status-only query; failure leaves *base unchanged.
++ */
++extern bool pe_arm_get_soc_base_phys_checked(vm_offset_t *base);
++/* Legacy value-only interface: zero can also mean lookup failure. */
+ extern vm_offset_t pe_arm_get_soc_base_phys(void);
+ extern uint32_t pe_arm_init_interrupts(void *args);
+ extern void pe_arm_debug_init_early(void *args);
