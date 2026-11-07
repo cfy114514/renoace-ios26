@@ -21,4 +21,4 @@ python -m unittest tools/tests/test_smmu_probe_source_model.py
 
 上一版 d317 carrier 的实机证据仍保存在 `local-device/p10-smmu-entry-20261107T175832Z/`，其 USB 字段属于旧的 P09 继承段；本阶段以新的 a9b 纯 SMMU-only 记录为准。
 
-`tools/capture_renoace_p10.py` 提供无写入记录解析；`native-p10-tests.json` 和 `package-evidence.json` 绑定当前离线候选。无论纯 SMMU 运行结果如何，USB reset/传输、DMA、电脑握手和完整 iOS 仍是独立后续范围。
+`tools/capture_renoace_p10.py` 提供无写入记录解析；`native-p10-tests.json` 和 `package-evidence.json` 绑定当前离线候选。纯 SMMU 运行已通过；USB reset/传输、DMA、电脑握手和完整 iOS 仍是独立后续范围。

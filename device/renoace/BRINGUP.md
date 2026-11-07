@@ -4,6 +4,8 @@
 
 最新结果见 [STAGE15.md](STAGE15.md)：P10 SMMU-only 已在实机完成 GR0 双轮只读观察，读取 94 个 SMR/S2CR 行并恢复原 recovery；没有 USB reset/传输、DMA 或电脑握手。P09 的 DWC3 条件只读结果仍见 [STAGE12.md](STAGE12.md)。当前 ABL 不支持 `fastboot boot`；受控诊断沿用临时 recovery 覆盖和恢复流程。回交后 ADB 可用不等于 XNU 运行期连接已建立。
 
+P10 之后的离线硬件参考审计见 [STAGE16.md](STAGE16.md)；它确认 Aloha 地址大体对齐，但触控驱动、完整 reserved-memory 交接、UEFI/DarwinBoot 运行验证和 iOS root storage 仍缺失。
+
 ## 源码分工
 
 - `worktrees/UniXNU-renoace`：`none24smu/UniXNU` 的 `ios26-ufs-owner-root`，iOS 26 内核、构建工具、通用驱动及固定子模块。
