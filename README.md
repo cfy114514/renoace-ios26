@@ -19,6 +19,7 @@
 - [P07 实机完整 VM 初始化与 RX 恢复](device/renoace/STAGE10.md)
 - [P08 实机设备映射与 USB 时钟只读快照](device/renoace/STAGE11.md)
 - [P09 实机 DWC3.1 条件只读识别](device/renoace/STAGE12.md)
+- [P11 第二次 PE 初始化的离线边界](device/renoace/STAGE13.md)
 - [后续 USB 连接方案（尚未执行）](device/renoace/USB_CONNECTION_PLAN.md)
 - [实机硬件参数](device/renoace/hardware.json)
 - [设备配置](device/renoace/board.toml)
