@@ -324,6 +324,10 @@ void xnu_control(const struct xnu_input *in,struct xnu_result *r) {
     r->io=*(const volatile struct io_snapshot_record *)((uintptr_t)ctx+IO_REC_MAGIC);
     r->usb=*(const volatile struct usb_inventory_record *)((uintptr_t)ctx+USB_REC_MAGIC);
     r->smmu=*(const volatile struct smmu_record *)((uintptr_t)ctx+SMMU_REC_MAGIC);
+    for(unsigned i=0;i<SMMU_REC_MAX_ROWS;++i) {
+        r->smmu_rows1[i]=*(const volatile uint64_t *)((uintptr_t)ctx+SMMU_REC_ROWS1+i*8);
+        r->smmu_rows2[i]=*(const volatile uint64_t *)((uintptr_t)ctx+SMMU_REC_ROWS2+i*8);
+    }
     r->vm_gate_entered=ctx->vm_gate_entered;
     r->vm_gate_kind=ctx->vm_gate_kind;
     r->vm_gate_pc=ctx->vm_gate_pc;
@@ -461,7 +465,7 @@ void xnu_control(const struct xnu_input *in,struct xnu_result *r) {
        r->smmu.scr0!=r->smmu.scr0_2 || r->smmu.idr0!=r->smmu.idr0_2 || r->smmu.idr1!=r->smmu.idr1_2)
         { r->status=29;goto done; }
     for(unsigned i=0;i<SMMU_REC_MAX_ROWS;++i)
-        if(i<r->smmu.count && r->smmu.rows1[i]!=r->smmu.rows2[i]) { r->status=29;goto done; }
+        if(i<r->smmu.count && r->smmu_rows1[i]!=r->smmu_rows2[i]) { r->status=29;goto done; }
     r->smmu_verified=1;
     r->status=0;
 done:
@@ -568,6 +572,8 @@ void xnu_append_log(const struct xnu_result *r) {
     value("smmu_scr0_2",r->smmu.scr0_2);value("smmu_idr0_2",r->smmu.idr0_2);value("smmu_idr1_2",r->smmu.idr1_2);
     value("smmu_row1_0",r->smmu.rows1[0]);value("smmu_row1_1",r->smmu.rows1[1]);
     value("smmu_row2_0",r->smmu.rows2[0]);value("smmu_row2_1",r->smmu.rows2[1]);
+    value("smmu_rows_crc1",snapshot_crc(r->smmu_rows1,r->smmu.count*8));
+    value("smmu_rows_crc2",snapshot_crc(r->smmu_rows2,r->smmu.count*8));
     value("io_schema",1);value("io_magic",r->io.magic);value("io_status",r->io.status);
     value("io_gate_pc",r->io.pc);value("io_sp",r->io.sp);value("io_vss_before",r->io.vss_before);
     value("io_map_va",r->io.va);value("io_map_pa",IO_GCC_PA);value("io_map_bytes",r->io.bytes);

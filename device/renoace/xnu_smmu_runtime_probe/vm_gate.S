@@ -512,7 +512,9 @@ mmu_smmu_inventory:
     cmp x23, #SMMU_REC_MAX_ROWS
     b.hi .Lsmmu_refuse
     str x23, [x19, #SMMU_REC_COUNT]
-    add x22, x19, #\rowbase
+    mov x22, x19
+    mov x25, #\rowbase
+    add x22, x22, x25
     mov x24, #0
 .Lsmmu_rows_\base:
     cmp x24, x23

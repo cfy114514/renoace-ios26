@@ -32,6 +32,7 @@ struct xnu_result {
     uint64_t usb_page_verified, usb_verified;
     struct smmu_record smmu;
     uint64_t smmu_verified;
+    uint64_t smmu_rows1[SMMU_REC_MAX_ROWS], smmu_rows2[SMMU_REC_MAX_ROWS];
     struct io_snapshot_record io;
     uint64_t io_pages_verified, io_verified;
     struct mmu_bridge_saved saved;
