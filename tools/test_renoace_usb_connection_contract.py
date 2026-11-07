@@ -40,9 +40,10 @@ def response(build_id, nonce):
 
 
 def verify_response(data, build_id, nonce):
-    if len(data) < 4 or not data.startswith(b"RENOACE-P12\0") or not data.endswith(struct.pack("<I", zlib.crc32(data[:-4]) & 0xFFFFFFFF)):
+    expected = response(build_id, nonce)
+    if len(data) != len(expected) or not data.startswith(b"RENOACE-P12\0") or not data.endswith(struct.pack("<I", zlib.crc32(data[:-4]) & 0xFFFFFFFF)):
         return False
-    return build_id.encode("ascii") + b"\0" + nonce in data
+    return data == expected
 
 
 def run():
@@ -54,11 +55,13 @@ def run():
     challenge = struct.pack("<BBHHH", 0xC0, 0x52, 1, 0, len(nonce))
     reply = response(BUILD_ID, nonce)
     bad_nonce = bytes(reversed(nonce))
+    malformed = reply + b"extra"
     stopped = ["disable_run_stop", "wait_event_quiet", "stop_trb_fetch", "confirm_no_dma", "unmap_iova", "restore_saved_state"]
     cases = {
         "device_descriptor_request": setup == bytes.fromhex("8006000100001200"),
         "vendor_challenge_request": challenge == bytes.fromhex("c052010000002000"),
         "fresh_nonce_response": verify_response(reply, BUILD_ID, nonce) and not verify_response(reply, BUILD_ID, bad_nonce),
+        "malformed_response_rejected": not verify_response(malformed, BUILD_ID, nonce),
         "page_aligned_nonoverlap_buffers": valid_layout,
         "stop_sequence_has_dma_quiet_before_unmap": stopped.index("confirm_no_dma") < stopped.index("unmap_iova"),
         "overlap_rejected": overlap(buffers[0], Buffer("bad", buffers[0].address, PAGE)),
