@@ -179,6 +179,24 @@ def validate_prepared(out,source):
 
 def p07_package_evidence(out,source):
     build,prep,cpio=validate_prepared(out,source)
+    p11_model_path=out/"native-p11-tests.json"
+    if p11_model_path.is_file():
+        model=read_json(p11_model_path)
+        require(model.get("passed") is True and model.get("all_cases_requested") is True and
+                model.get("negative_cases_executed") == 8 and model.get("negative_cases_complete") is True and
+                model.get("negative_cases_passed") is True and model.get("caller_state_exact") is True and
+                model.get("FP_SIMD_exact") is True and model.get("CNTKCTL_exact") is True,
+                "P11 native model coverage incomplete")
+        require(model.get("build_id")==build["build_id"] and model.get("image_sha256")==build["image_sha256"],
+                "P11 native model does not bind current candidate")
+        require(model.get("source_hashes")==build["source_hashes"] and
+                model.get("test_source_sha256")==sha((source/"test_instructions.py").read_bytes()),
+                "P11 native model source/test binding changed")
+        return {"passed":True,"build_id":build["build_id"],"image_sha256":build["image_sha256"],
+                "model":model,"model_sha256":sha(p11_model_path.read_bytes()),
+                "prepare_validation_sha256":sha((out/"prepare-validation.json").read_bytes()),
+                "cpio_validation_sha256":sha((out/"cpio-validation.json").read_bytes()),
+                "hardware_tested":False,"kind":"p11-native-model"}
     model=read_json(out/"native-vm-tests.json")
     review=read_json(ROOT/"out/analysis/p07-independent-integration-review.json")
     for report,label in ((model,"native VM model"),(review,"independent integration review")):
