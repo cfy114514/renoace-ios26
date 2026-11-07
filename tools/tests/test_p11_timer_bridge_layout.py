@@ -53,6 +53,7 @@ class P11TimerBridgeLayoutTests(unittest.TestCase):
         self.assertIn("tbnz x17, #63, .Lsecond_continue", gate)
         self.assertIn("mov x0, x19", gate)
         self.assertIn("mov x9, #2", gate)
+        self.assertIn("tst x9, #0x3c0", gate)
         self.assertIn('fiq_return=0xb2ffe8', builder)
         self.assertIn('0x97e69a99', builder)
 

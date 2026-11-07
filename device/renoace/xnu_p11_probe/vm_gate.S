@@ -105,7 +105,11 @@ mmu_vm_gate_common:
 .Lsecond_continue:
     /* The second-PE return gate displaces `mov x0,x19`.  Continue the
      * original arm_init body after that instruction and stop at the patched
-     * return from fiq_context_init. */
+     * return from fiq_context_init. Refuse to cross the FIQ path if the
+     * captured DAIF did not have all four mask bits set. */
+    ldr x9, [x16, #MMU_VM_DAIF]
+    tst x9, #0x3c0
+    b.ne .Lrestore
     mov x0, x19
     mov x9, #2
     str x9, [x16, #P11_PHASE]
