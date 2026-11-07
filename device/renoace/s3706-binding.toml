@@ -1,0 +1,33 @@
+# Measured Reno Ace S3706 binding input for a future XNU/UEFI transport.
+# This is data only. It is not wired into the current UniXNU build.
+
+[controller]
+name = "qupv3_se17_i2c"
+compatible = "qcom,i2c-geni"
+base = 0xc80000
+bytes = 0x4000
+interrupt = 373
+wrapper = "qupv3_2"
+clocks = ["se-clk", "m-ahb", "s-ahb"]
+
+[device]
+compatible = "synaptics-s3706"
+address = 0x20
+panel_width = 1080
+panel_height = 2400
+irq_gpio = 122
+reset_gpio = 54
+enable_1v8_gpio = 5
+vdd_supply = "pm8150_l17"
+vdd_microvolts = 3000000
+
+[protocol]
+page_select_register = 0xff
+discovery_pages = [0, 1, 4]
+discovery_offsets = [0xdd, 0xe3, 0xe9]
+touch_bytes_per_finger = 8
+
+[policy]
+xnu_driver_ready = false
+pio_only = true
+dma_allowed = false
