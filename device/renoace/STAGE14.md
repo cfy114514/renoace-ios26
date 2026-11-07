@@ -28,7 +28,7 @@ python -m unittest discover -s tools/tests -p 'test_*.py'
 
 这是主机模型证据，`hardware_tested=false`；它不会把 TVAL 当作绝对恢复值，也不会声称已经验证真实 timer、IRQ 或手机返回路径。
 
-P11 桥的离线候选现在在 `mmu_bridge.S` 中保存 `CNTV_CTL_EL0/CVAL_EL0`、`CNTP_CTL_EL0/CVAL_EL0` 及入口 `ISTATUS`，并在恢复阶段强制 DAIF 屏蔽，先写绝对比较值、再写控制位，最后读取回控制/比较值和新的 `ISTATUS` 见证。`xnu_control.c` 只接受可写控制位和两个绝对 `CVAL` 精确恢复，并记录 timer 恢复字段。固定 Linux NDK 30.0.14904198 已由 [`setup_renoace_ndk.py`](../../tools/setup_renoace_ndk.py) 下载并以 SHA-1 `26b746e5…` 核验；当前云环境已真实编译 `mmu_bridge.bin`（10048 字节，SHA-256 `39300f04…`）和 `vm_gate.bin`（460 字节，SHA-256 `e4765921…`）。
+P11 桥的离线候选现在在 `mmu_bridge.S` 中保存 `CNTV_CTL_EL0/CVAL_EL0`、`CNTP_CTL_EL0/CVAL_EL0` 及入口 `ISTATUS`，并在恢复阶段强制 DAIF 屏蔽，先写绝对比较值、再写控制位，最后读取回控制/比较值和新的 `ISTATUS` 见证。`xnu_control.c` 只接受可写控制位和两个绝对 `CVAL` 精确恢复，并记录 timer 恢复字段。固定 Linux NDK 30.0.14904198 已由 [`setup_renoace_ndk.py`](../../tools/setup_renoace_ndk.py) 下载并以 SHA-1 `26b746e5…` 核验；当前已真实编译 `mmu_bridge.bin`（10048 字节，SHA-256 `39300f04…`）和 `vm_gate.bin`（468 字节，SHA-256 `88f5b0c5…`）。
 
 只编译桥和 RX gate（不读取手机或私有 boot/recovery 镜像）：
 
@@ -37,7 +37,7 @@ python tools/setup_renoace_ndk.py --check
 python tools/build_renoace_p11_probe.py --bridge-only
 ```
 
-本次已在本机载入上述被 `.gitignore` 排除的只读输入、冻结 seed 和上游 `references/`，完成完整 P11 构建与指令模型。构建 ID 为 `082d5a90257c6a45`，Image SHA-256 为 `8930b4b0063d26ca107c0b5dbda25d955c9d9a9d957b31c86dfa32c143dc6e8e`，RX gate 为 460 字节、私有补丁 155 个。模型结果位于 `out/xnu-p11-probe/native-p11-tests.json`，`passed=true`；正向事件包含完整 VM 返回、第二次 PE 返回、`fiq_context_init` 返回 gate、旧根恢复、identity 返回和 Linux bridge 返回。该模型仍是离线指令模型，`hardware_tested=false`。
+本次已在本机载入上述被 `.gitignore` 排除的只读输入、冻结 seed 和上游 `references/`，完成完整 P11 构建与指令模型。构建 ID 为 `0598c77656df6380`，Image SHA-256 为 `96bbc9fa1bf24801182b546b15d886955c1df9e0c39014ac9db06456acaea67d`，RX gate 为 468 字节、私有补丁 157 个。模型结果位于 `out/xnu-p11-probe/native-p11-tests.json`，`passed=true`；正向事件包含完整 VM 返回、第二次 PE 返回、`fiq_context_init` 返回 gate、旧根恢复、identity 返回和 Linux bridge 返回，8 个负向拒绝/故障用例也全部通过。该模型仍是离线指令模型，`hardware_tested=false`。
 
 复现命令：
 
@@ -49,4 +49,4 @@ python device/renoace/xnu_p11_probe/test_instructions.py --build out/xnu-p11-pro
 python device/renoace/xnu_p11_probe/test_instructions.py --build out/xnu-p11-probe --all-cases
 ```
 
-第二次 PE 返回 gate 已完成第三阶段离线正向验证：恢复被替换的 `mov x0,x19` 后继续原始 `arm_init`，并在 `fiq_context_init` 返回地址 `0xfffffff007b33fe8` 进入 RX gate；该 gate 恢复原始页表并回交 Linux。负向拒绝用例、真实 `fiq_context_init`、IRQ 投递和手机执行仍未验证。
+第二次 PE 返回 gate 已完成第三阶段离线验证：恢复被替换的 `mov x0,x19` 后继续原始 `arm_init`，并在 `fiq_context_init` 返回地址 `0xfffffff007b33fe8` 进入 RX gate；该 gate 恢复原始页表并回交 Linux，8 个负向拒绝/故障用例全部通过。真实 `fiq_context_init`、IRQ 投递和手机执行仍未验证。

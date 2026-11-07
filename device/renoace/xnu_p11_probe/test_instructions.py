@@ -360,7 +360,8 @@ class Fixture:
         require(sha(macho) == build["xnu"]["source_sha256"], "XNU source identity mismatch")
         for name, expected in build["source_hashes"].items():
             require(sha((Path(__file__).parent / name).read_bytes()) == expected, "source/build mismatch: " + name)
-        require(build["xnu"]["constants"]["XNU_PATCH_COUNT"] == 155, "unexpected P11 private-patch inventory")
+        expected_patches = 40 + build["xnu"]["bridge"]["gate"]["bytes"] // 4
+        require(build["xnu"]["constants"]["XNU_PATCH_COUNT"] == expected_patches, "unexpected P11 private-patch inventory")
         header = definitions(Path(__file__).with_name("mmu_bridge.h"))
         header.update(definitions(Path(__file__).with_name("p11_gate_layout.h")))
         return cls(directory, build, image, linux, initrd, macho,
@@ -1071,6 +1072,8 @@ class VMProduction(Machine):
             if phase == 0:
                 require(self.full_vm_return, "phase-0 RX gate reached before VM return checkpoint")
                 self.events.append({"event": "compiled_RX_gate_checkpoint", "pc": hex(address), "phase": phase})
+                if self.case.post_vm_fault:
+                    self.inject_post_vm_fault(self.link + self.xc["XNU_CHECKPOINT_OFFSET"])
             elif phase == 1:
                 if not self.second_pe_return:
                     self.second_pe_return = True

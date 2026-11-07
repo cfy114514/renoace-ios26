@@ -10,7 +10,7 @@
     "arm_init_va": "0xfffffff007b33594",
     "full_arm_vm_init_return_va": "0xfffffff007b33e34"
   },
-  "device_patch_sha256": "b971f39f86c44ea65f6c5f3e546764744bff51eb0dd3c9622f29592469f0ec8c",
+  "device_patch_sha256": "64126ed8aebc1fc827d6d3102f580e092db4acfc2107068870fd496aff297e81",
   "patch_module_sha256": "12bd1cd12611540e4ad5f046ba1ec1f18f9fb5e40046c329230fc561ff0a9ce0",
   "independent_static_checks": 32,
   "validation_report_sha256": "14ea09a2161c2c81ef495d828e5b9f9f09530fac56eaade3915b1cae513cd2ba",

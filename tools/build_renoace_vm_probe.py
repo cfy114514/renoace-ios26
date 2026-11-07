@@ -566,7 +566,7 @@ def prepare_xnu(out,normal_ramdisk,bridge,bridge_report,package=False):
         "expected_sp0_va":constants["XNU_OBS_SP0_VA"],"expected_sp1_va":constants["XNU_OBS_SP1_VA"],
         "expected_x20":symbols["_init_thread"],"expected_lr":CHECKPOINT_VA,"x0_x21_are_entry_args":False,
         "witness_vas":witness_vas}
-    report["source_compatibility"]={"kind":"compiled checked zero-base arm-io API and missing bus frequency guard","patch_sha256":"b971f39f86c44ea65f6c5f3e546764744bff51eb0dd3c9622f29592469f0ec8c","private_zero_base_NOP":False}
+    report["source_compatibility"]={"kind":"compiled checked zero-base arm-io API and missing bus frequency guard","patch_sha256":"64126ed8aebc1fc827d6d3102f580e092db4acfc2107068870fd496aff297e81","private_zero_base_NOP":False}
     mutated=bytearray(data)
     for patch_item in patches:struct.pack_into("<I",mutated,patch_item["file_offset"],patch_item["replacement"])
     report["private_patched_macho_sha256"]=sha(mutated)

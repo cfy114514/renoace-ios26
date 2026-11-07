@@ -18,7 +18,7 @@
 
 仅临时副本的 `board.example` 被设为 `false`，并加入明确的内核输出路径；原始设备文件保持不变。准备程序拒绝带 prelink 的源配置。CI 仅执行 `build kernel`，不制作 IPSW、根文件系统或手机启动镜像。
 
-设备补丁固定 SHA-256 为 `b971f39f86c44ea65f6c5f3e546764744bff51eb0dd3c9622f29592469f0ec8c`，XNU 固定为 `ac9718fb1af618d5ce8678d0dc6e8a58f252216f`。补丁把 arm-io 查找成功与物理基址零分开表示，并校验单个 64 位 ranges 元组；缺失 `bus-frequency` 时 CPU/总线比率保持未知（零），不填造时钟值。后续中断和串口 MMIO 消费者仍需板级验证。
+设备补丁固定 SHA-256 为 `64126ed8aebc1fc827d6d3102f580e092db4acfc2107068870fd496aff297e81`，XNU 固定为 `ac9718fb1af618d5ce8678d0dc6e8a58f252216f`。补丁把 arm-io 查找成功与物理基址零分开表示，并校验单个 64 位 ranges 元组；缺失 `bus-frequency` 时 CPU/总线比率保持未知（零），不填造时钟值。后续中断和串口 MMIO 消费者仍需板级验证。
 
 准备程序先按 Git blob 核对并完整复制框架 `patches/xnu-12377` 的44个文件，再把设备补丁命名为 `zzzzz-renoace-native-arm-io-zero-base.patch`，放在原有系列之后。`defconfig`、`status`、`fetch`、`build kernel` 都显式传入绝对路径 `--local-module patch:xnu-12377=.../patch-modules/xnu-12377`。这样保留全部上游补丁，也不会写入框架目录或构建树里的默认符号链接。`patch-module-manifest.json` 记录完整45文件及执行顺序；模块 SHA-256 为 `12bd1cd12611540e4ad5f046ba1ec1f18f9fb5e40046c329230fc561ff0a9ce0`，计算输入是按键排序的紧凑 UTF-8 JSON「相对路径→文件 SHA-256」映射。
 

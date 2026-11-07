@@ -14,4 +14,4 @@ P09 实机已恢复并验证；本阶段只做静态离线检查，没有手机�
 
 可复现检查器：[validate_renoace_p11_checkpoint.py](../tools/validate_renoace_p11_checkpoint.py)。当前检查通过，且篡改返回字的副本会被拒绝；输出：[p11-second-pe-static.json](../../out/analysis/p11-second-pe-static.json)。
 
-负向拒绝用例仍未运行；该离线模型不能替代手机启动、IRQ、DMA、XNU 运行期电脑连接或完整 iOS 证明。
+本次完整指令模型已运行正向路径和 8 个负向拒绝/故障用例，9/9 通过；该离线模型不能替代手机启动、IRQ、DMA、XNU 运行期电脑连接或完整 iOS 证明。

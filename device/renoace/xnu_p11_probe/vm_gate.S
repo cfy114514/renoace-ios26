@@ -81,6 +81,9 @@ mmu_vm_gate_common:
     str x9, [x16, #MMU_VM_GATE_COMPLETED]
     ldr x9, [x16, #MMU_VM_NZCV]
     msr nzcv, x9
+    tbnz x17, #63, .Lrestore_observer
+    b p11_fault_common_address
+.Lrestore_observer:
     b p11_observer_address
 .Lcontinue:
     mov x9, #1
