@@ -1,5 +1,5 @@
 {
-  "source_commit": "065b24d30f7013596cc54a77d51e003f2e1b12b3",
+  "source_commit": "812835c5488cb628ded900576986747c6dc4da24",
   "scope": "minimal kernel CI source; no phone captures or workspace history",
   "framework_commit": "a8b90c0c645fd62ae850cd43e80c87bab4cc157d",
   "files": [
@@ -20,8 +20,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 706,
-      "sha256": "7c395585a2761ddd758152da414adcee546b345be03980086676a40c40d46cb8"
+      "bytes": 833,
+      "sha256": "6795a8430f1bc05c418b91e73c179132b2edea8731ec5ecd68779cf0f0640f7b"
     },
     {
       "path": "ci/README.md",
