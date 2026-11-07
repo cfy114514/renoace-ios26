@@ -8,6 +8,8 @@
 
 **访问前提尚未验证。** 固定OPPO驱动在寄存器操作前处理互连带宽、供电与时钟；apps-SMMU节点带`qcom,skip-init`且没有可直接据此发明GCC位掩码的父时钟列表。USB的GCC和控制器访问不证明SMMU CPU权限、NoC/时钟保持或DMA所有权。先解决这一访问契约，再制作目标探针；软件时间上限无法救回永久卡住的MMIO加载。
 
+Flame 的 `smmuprobe.c` 只能作参考：它按旧格式读取 IDR/SMR/S2CR 后继续访问 GR1、context bank 和 TTBR，并带有固定地址假设；没有处理 SMS/EXIDS、GR0 页内数组边界或双轮稳定性，也不能证明本机的供电和安全访问。P10 契约在这些后续访问前停止。
+
 | 读取项 | GR0偏移 | 必须采用的边界与解码 |
 |---|---|---|
 | sCR0 | `0x00` | 只记录CLIENTPD0、EXIDENABLE3、USFCFG10等策略，不写 |
