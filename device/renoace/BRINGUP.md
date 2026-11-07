@@ -2,7 +2,7 @@
 
 本文件对应 PCLM10 / OP4A89 / OPPO project 19081，实机硬件事实见 `hardware.json`。这里只把已测量的事实用于配置。已在本机受控执行 XNU 的完整 `arm_vm_init` 并返回 Linux；这仍不是完整内核或 iOS 开机。
 
-最新结果见 [STAGE12.md](STAGE12.md)：P09 在实机完成原始VM/设备映射和源条件约束的DWC3.1身份/状态读取，控制器报告halt，尚无枚举/DMA或电脑交互。原 recovery 已恢复并正常回到 YAAP。当前 ABL 不支持 `fastboot boot`；受控诊断沿用临时 recovery 覆盖和恢复流程。回交后 ADB 可用不等于 XNU 运行期连接已建立。
+最新结果见 [STAGE15.md](STAGE15.md)：P10 SMMU-only 已在实机完成 GR0 双轮只读观察，读取 94 个 SMR/S2CR 行并恢复原 recovery；没有 USB reset/传输、DMA 或电脑握手。P09 的 DWC3 条件只读结果仍见 [STAGE12.md](STAGE12.md)。当前 ABL 不支持 `fastboot boot`；受控诊断沿用临时 recovery 覆盖和恢复流程。回交后 ADB 可用不等于 XNU 运行期连接已建立。
 
 ## 源码分工
 
