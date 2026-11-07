@@ -18,3 +18,12 @@ P11 的成功门槛是：第二次 PE 调用/返回见证、上述 timer 保存/
 证据：[P11 静态检查器](../tools/validate_renoace_p11_checkpoint.py)、[P11 检查结果](../../out/analysis/p11-second-pe-static.json)、[P11 原始路径分析](../../out/analysis/p11-post-vm-checkpoint.md)。完整 iOS、XNU 运行期电脑连接、DMA/IOVA 和真实 IRQ 仍未证明。
 
 离线事件回放：[replay.py](../../out/p11-second-pe-model/replay.py)、[replay.json](../../out/p11-second-pe-model/replay.json)。它在真实内核字节上复核事件顺序，并确认 `arm_init` 到 FIQ 调用前没有提前写 `CNTV_CTL_EL0`；它没有执行 XNU 或手机。
+
+主机契约模型：[validate_renoace_timer_contract.py](../../tools/validate_renoace_timer_contract.py)。它覆盖绝对 `CVAL` 保存/恢复、`CNTV_CTL_EL0` 与 `CNTP_CTL_EL0` 的可写位、`ISTATUS` pending 见证、完整 DAIF 屏蔽和半范围歧义拒绝；六个正/负用例均通过。运行：
+
+```powershell
+python tools/validate_renoace_timer_contract.py
+python -m unittest discover -s tools/tests -p 'test_*.py'
+```
+
+这是主机模型证据，`hardware_tested=false`；它不会把 TVAL 当作绝对恢复值，也不会声称已经验证真实 timer、IRQ 或手机返回路径。
