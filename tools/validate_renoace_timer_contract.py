@@ -120,6 +120,8 @@ def preserve_timer_state(before: TimerState, *, counter_after: int,
             "timer mutation fixture did not change state")
     require((daif_after & DAIF_MASK) == DAIF_MASK,
             "DAIF must remain masked at restoration witness")
+    require((daif_after & MASK64) == saved.daif,
+            "DAIF restoration differs from the saved caller state")
     after = TimerState(saved.cntv_ctl, saved.cntv_cval, saved.cntp_ctl,
                        saved.cntp_cval, counter_after, daif_after).normalized()
     return TimerWitness(
@@ -178,6 +180,15 @@ def run_cases() -> dict:
                            "pending ISTATUS transition was not recorded"))
         (preserve_timer_state(base, counter_after=1_100,
                               daif_during=DAIF_MASK, daif_after=DAIF_MASK))))
+    positive("istatus_is_read_only_on_restore", lambda: (
+        (lambda w: require(w.saved.cntv_ctl == CTL_ENABLE and
+                           w.restored_cntv_ctl == CTL_ENABLE,
+                           "read-only ISTATUS bit leaked into CTL restore"))
+        (preserve_timer_state(
+            TimerState(CTL_ENABLE | CTL_ISTATUS, 1_000, CTL_IMASK,
+                       2_000, 900, DAIF_MASK),
+            counter_after=950, daif_during=DAIF_MASK, daif_after=DAIF_MASK,
+            changed_cval=10, changed_cntv_ctl=CTL_ENABLE | CTL_ISTATUS))))
     negative("reject_unmasked_entry", lambda: preserve_timer_state(
         TimerState(CTL_ENABLE, 1_000, 0, 2_000, 900, 0), counter_after=1_000,
         daif_during=DAIF_MASK, daif_after=DAIF_MASK))
@@ -185,6 +196,9 @@ def run_cases() -> dict:
         base, counter_after=1_000, daif_during=0, daif_after=DAIF_MASK))
     negative("reject_unmasked_restore", lambda: preserve_timer_state(
         base, counter_after=1_000, daif_during=DAIF_MASK, daif_after=0))
+    negative("reject_daif_state_change", lambda: preserve_timer_state(
+        base, counter_after=1_000, daif_during=DAIF_MASK,
+        daif_after=DAIF_MASK | (1 << 0)))
     negative("reject_half_range_ambiguity", lambda: preserve_timer_state(
         TimerState(CTL_ENABLE, 1, 0, 1, 1 << 63, DAIF_MASK),
         counter_after=(1 << 63) + 1, daif_during=DAIF_MASK,

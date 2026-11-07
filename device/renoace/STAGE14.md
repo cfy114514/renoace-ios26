@@ -8,7 +8,7 @@
 
 - `CNTV_CTL_EL0`，包括 enable、masked 和只读 `ISTATUS` 见证；
 - `CNTV_CVAL_EL0` 的绝对比较值；
-- `CNTP_CTL_EL0`，因为源码函数可能在另一 DAIF/编译分支写它；
+- `CNTP_CTL_EL0`，因为源码函数可能在另一 DAIF/编译分支写它；若要独立解释 physical `ISTATUS`，还要读取 `CNTP_CVAL_EL0` 或直接保存其原始 `ISTATUS` 见证；
 - 必要的 `CNTVCT_EL0` 起始值，用于记录模型时间变化，而不是恢复 TVAL。
 
 恢复顺序应保持 DAIF 屏蔽：先写回 `CNTV_CVAL_EL0`，再写回原始 `CNTV_CTL_EL0`，读取回所有寄存器并记录一致性；随后恢复已有 P07/P09 系统寄存器、栈、FP/SIMD、根和 VBAR。`CNTV_TVAL_EL0` 是相对且随时间变化的值，不能作为绝对恢复值。若原始控制值允许 timer 已启用或 `ISTATUS=1`，恢复后仍可能产生待处理状态，因此在返回 Linux 前必须保持 DAIF 屏蔽并明确记录 pending 见证；若目标是让原 Linux 接管 timer，则保存的控制状态必须与进入前完全相等。
@@ -19,7 +19,7 @@ P11 的成功门槛是：第二次 PE 调用/返回见证、上述 timer 保存/
 
 离线事件回放：[replay.py](../../out/p11-second-pe-model/replay.py)、[replay.json](../../out/p11-second-pe-model/replay.json)。它在真实内核字节上复核事件顺序，并确认 `arm_init` 到 FIQ 调用前没有提前写 `CNTV_CTL_EL0`；它没有执行 XNU 或手机。
 
-主机契约模型：[validate_renoace_timer_contract.py](../../tools/validate_renoace_timer_contract.py)。它覆盖绝对 `CVAL` 保存/恢复、`CNTV_CTL_EL0` 与 `CNTP_CTL_EL0` 的可写位、`ISTATUS` pending 见证、完整 DAIF 屏蔽和半范围歧义拒绝；六个正/负用例均通过。运行：
+主机契约模型：[validate_renoace_timer_contract.py](../../tools/validate_renoace_timer_contract.py)。它覆盖绝对 `CVAL` 保存/恢复、`CNTV_CTL_EL0` 与 `CNTP_CTL_EL0` 的可写位、只读 `ISTATUS` 的 pending 见证、完整 DAIF 屏蔽及精确恢复和半范围歧义拒绝；八个正/负用例均通过。运行：
 
 ```powershell
 python tools/validate_renoace_timer_contract.py
