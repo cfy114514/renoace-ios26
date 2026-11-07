@@ -613,7 +613,7 @@ def main():
     ap.add_argument("--validate-only",action="store_true",help="refresh input evidence and check package gates without compiling or packaging")
     args=ap.parse_args()
     if sum((args.bridge_only,args.package,args.prepare_only,args.validate_only))>1:
-        ap.error("select only one of --package, --prepare-only, --validate-only")
+        ap.error("select only one of --bridge-only, --package, --prepare-only, --validate-only")
     source=ROOT/"device/renoace/xnu_p11_probe"
     out=ROOT/"out/xnu-p11-probe";out.mkdir(parents=True,exist_ok=True)
     (source/"p11_gate_layout.h").write_text("#define P11_PHASE 0xca0\n#define P11_DISPLACED_PAGE 0xfffffff0071a1000UL\n#define P11_DISPLACED_OFF 0x1e8\n#define P11_CONTINUE_VA 0xfffffff007b33e40UL\n#define P11_SECOND_CONTINUE_VA 0xfffffff007b2ffb0UL\n#define P11_FIQ_RETURN_VA 0xfffffff007b33fe8UL\n",encoding="utf-8",newline="\n")
