@@ -47,3 +47,16 @@ IDR1页大小为4KiB或64KiB，global范围按`(1<<(NUMPAGENDXB+1))<<page_shift`
 固定OPPO源码提交`289d6118ef783a281a8ecf0378e3c560ff6976c4`，实际为monolithic `drivers/iommu/arm-smmu.c`和`arm-smmu-regs.h`。文件SHA-256分别为`387fdb60492e99ae6b54243393b0e76df2c4ec79e2b09a482e4a9611671d223d`和`d47fff32ec38d2631b7c96faeac9d38fbb4c527b71e2241c8aabf9ab4e341edd`。不能因为较新分拆文件不存在而改用未固定版本的实现推断本机。
 
 完整固定源缓存、边界/格式说明及伪代码在`out/analysis/p10-smmu-inventory-contract.*`；P09实机寄存器判读在`out/analysis/p09-actual-inventory.*`。Flame的未匹配SID复位和HYP拒绝bypass是参考机现象，仍不是Reno Ace的实测结果。实机已完成范围见[STAGE12.md](STAGE12.md)。
+
+## 离线解码器
+
+`tools/decode_renoace_smmu_inventory.py` 已实现上述输入边界、双扫描一致性、legacy全部匹配和EXIDS/SMS0原始模式处理，30项主机虚拟用例通过；没有读取真实SMMU。
+
+未来捕获格式为 `schema_version:1`，固定`aperture:{base:"0x15000000",bytes:"0x100000"}`，`sid:"0x140"`，以及两个`passes`；每项包含`idr0`、`idr1`、`scr0`和`rows:[{smr,s2cr},…]`。寄存器接受无符号整数或`0x`字符串，拒绝布尔/浮点、重复JSON键和超出1MiB的输入。仅对有效、匹配SID的translate项检查CB索引，保留其他未使用或非目标行的原始字段。超过固定匹配输出容量时明确标记溢出，不静默丢弃。
+
+```powershell
+python tools/decode_renoace_smmu_inventory.py future-inventory.json
+python -m unittest discover -s tools/tests -p test_smmu_inventory_decoder.py
+```
+
+任何输出都明确带`hardware_capture_verified:false`、`dma_access_verified:false`与`input_only_decode:true`。它只解释输入数据，不验证捕获来源，也不能替代未来探针记录的构建编号/CRC/传输哈希或DMA试验。
