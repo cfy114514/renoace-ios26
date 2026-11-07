@@ -26,6 +26,7 @@
 - [USB EP0 连接契约离线模型](device/renoace/STAGE17.md)
 - [reserved-memory / handoff 离线审计](device/renoace/STAGE18.md)
 - [iOS 用户态输入离线清点](device/renoace/STAGE19.md)
+- [GENI-I²C PIO-only 移植契约](device/renoace/STAGE22.md)
 - [UniXNU 驱动缺口离线审计](device/renoace/STAGE20.md)
 - [S3706 I²C 协议离线提取](device/renoace/STAGE21.md)
 - [实机硬件参数](device/renoace/hardware.json)
