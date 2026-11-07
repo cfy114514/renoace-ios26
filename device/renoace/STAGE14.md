@@ -16,3 +16,5 @@
 P11 的成功门槛是：第二次 PE 调用/返回见证、上述 timer 保存/恢复等式、physical timer 分支是否实际执行的分支记录、DAIF/VM 根/栈/FP 状态等式，以及 Linux 返回和原 recovery 恢复。越过 `fiq_context_init` 后再继续 `machine_init`、scheduler 或 `PE_init_iokit`，还需要实际 timer/IRQ 路径和更大的 RX/日志布局审查。
 
 证据：[P11 静态检查器](../tools/validate_renoace_p11_checkpoint.py)、[P11 检查结果](../../out/analysis/p11-second-pe-static.json)、[P11 原始路径分析](../../out/analysis/p11-post-vm-checkpoint.md)。完整 iOS、XNU 运行期电脑连接、DMA/IOVA 和真实 IRQ 仍未证明。
+
+离线事件回放：[replay.py](../../out/p11-second-pe-model/replay.py)、[replay.json](../../out/p11-second-pe-model/replay.json)。它在真实内核字节上复核事件顺序，并确认 `arm_init` 到 FIQ 调用前没有提前写 `CNTV_CTL_EL0`；它没有执行 XNU 或手机。
