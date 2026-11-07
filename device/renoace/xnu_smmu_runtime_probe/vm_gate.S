@@ -238,7 +238,7 @@ mmu_io_read:
     dsb sy
     mov x9, #IO_STATUS_COMPLETE
     str x9, [x19, #IO_REC_STATUS]
-    b mmu_usb_inventory
+    b mmu_smmu_inventory
 .Lio_bad_map:
     mov x9, #IO_STATUS_REFUSED
     str x9, [x19, #IO_REC_STATUS]

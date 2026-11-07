@@ -18,8 +18,22 @@ def sha(data):
 def main():
     build = json.loads((OUT / "build.json").read_text())
     model = json.loads((ROOT / "out/analysis/p10-smmu-source-model.json").read_text())
+    native_path = OUT / "native-p10-tests.json"
+    native = json.loads(native_path.read_text())
     if not model.get("passed"):
         raise ValueError("P10 source model did not pass")
+    if not native.get("passed") or native.get("hardware_tested") or native.get("device_access"):
+        raise ValueError("P10 native model did not pass as an offline-only model")
+    if native.get("build_id") != build.get("build_id") or native.get("image_sha256") != build.get("image_sha256"):
+        raise ValueError("P10 native model identity mismatch")
+    if native.get("test_source_sha256") != sha((ROOT / "tools/test_renoace_smmu_native_model.py").read_bytes()):
+        raise ValueError("P10 native model source changed")
+    for name, digest in native.get("source_hashes", {}).items():
+        if build.get("source_hashes", {}).get(name) != digest:
+            raise ValueError("P10 native model source binding mismatch: " + name)
+    cases = native.get("cases", {})
+    if native.get("row_count") != 94 or native.get("descriptor_reads_per_pass") != 188 or not all(cases.values()):
+        raise ValueError("P10 native model coverage incomplete")
     if build.get("hardware_tested") or build.get("device_access"):
         raise ValueError("P10 package must remain hardware-untested")
     pack_spec = ROOT / "tools/build_renoace_probe.py"
@@ -69,7 +83,9 @@ def main():
     report = {"passed": True, "hardware_tested": False, "device_access": False,
               "dma_access_verified": False, "carrier_sha256": sha(final), "carrier_bytes": len(final),
               "restore_sha256": sha(recovery), "scope": "P10 source-contract carrier; no phone execution, SMMU capture, USB, or DMA",
-              "model": "out/analysis/p10-smmu-source-model.json"}
+              "model": "out/analysis/p10-smmu-source-model.json",
+              "native_model": "out/xnu-smmu-probe/native-p10-tests.json",
+              "native_model_sha256": sha(native_path.read_bytes())}
     (OUT / "package-evidence.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report, indent=2))
 

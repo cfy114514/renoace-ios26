@@ -443,6 +443,7 @@ void xnu_control(const struct xnu_input *in,struct xnu_result *r) {
     }
     r->io_verified=r->io_pages_verified==IO_GCC_BYTES/0x1000;
     if(!r->io_verified) { r->status=26;goto done; }
+#if !P10_SMMU_ONLY
     if(r->usb.magic!=USB_MAGIC || r->usb.status!=2 || r->usb.stage!=2 || r->usb.count!=5 ||
        r->usb.coherent!=1 || r->usb.reason || (r->usb.bcr&1) || (r->usb.par&1) || (r->usb.par>>56) ||
        (r->usb.par&0x0000fffffffff000UL)!=USB_CORE_PA ||
@@ -457,6 +458,7 @@ void xnu_control(const struct xnu_input *in,struct xnu_result *r) {
         (usb_leaf&(1UL<<10)) && usb_xn && (usb_leaf&(1UL<<54));
     r->usb_verified=r->usb_page_verified;
     if(!r->usb_verified) { r->status=28;goto done; }
+#endif
     if(r->smmu.magic!=0x303131504d4d5553ULL || r->smmu.status!=SMMU_REC_STATUS_COMPLETE ||
        r->smmu.stage!=SMMU_REC_STAGE_ROWS || r->smmu.count>SMMU_REC_MAX_ROWS ||
        (r->smmu.va&0xfff) || (r->smmu.par&1) || (r->smmu.par>>56) ||
