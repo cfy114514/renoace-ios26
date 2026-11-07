@@ -33,6 +33,16 @@
 #define MMU_FP_SNAPSHOT_NZCV 0x750
 #define MMU_FP_SNAPSHOT_CPACR 0x758
 #define MMU_FP_SNAPSHOT_PC 0x760
+#define MMU_TIMER_DAIF_AT_RESTORE 0x768
+#define MMU_TIMER_DAIF_DURING 0x770
+#define MMU_TIMER_RESTORED_CNTV_CTL 0x778
+#define MMU_TIMER_RESTORED_CNTV_CVAL 0x780
+#define MMU_TIMER_RESTORED_CNTP_CTL 0x788
+#define MMU_TIMER_RESTORED_CNTP_CVAL 0x790
+#define MMU_TIMER_RESTORED_CNTVCT 0x798
+#define MMU_TIMER_RESTORED_CNTV_ISTATUS 0x7a0
+#define MMU_TIMER_RESTORED_CNTP_ISTATUS 0x7a8
+#define MMU_TIMER_RESTORE_VALID 0x7b0
 #define MMU_FP_Q_BEFORE 0x800
 #define MMU_FP_Q_AFTER 0xa00
 #define MMU_FPCR_BEFORE 0xc00
@@ -117,6 +127,12 @@
 #define MMU_SAVE_ESR 0x2d8
 #define MMU_SAVE_FAR 0x2e0
 #define MMU_SAVE_CNTKCTL 0x2e8
+#define MMU_SAVE_CNTV_CTL 0x2f0
+#define MMU_SAVE_CNTV_CVAL 0x2f8
+#define MMU_SAVE_CNTP_CTL 0x300
+#define MMU_SAVE_CNTP_CVAL 0x308
+#define MMU_SAVE_CNTV_ISTATUS 0x310
+#define MMU_SAVE_CNTP_ISTATUS 0x318
 #define MMU_OBS_STATUS 0x400
 #define MMU_OBS_PHASE 0x408
 #define MMU_OBS_ENTERED 0x410
@@ -251,7 +267,13 @@ struct mmu_bridge_saved {
     uint64_t esr;
     uint64_t far;
     uint64_t cntkctl;
-    uint64_t reserved[34];
+    uint64_t cntv_ctl;
+    uint64_t cntv_cval;
+    uint64_t cntp_ctl;
+    uint64_t cntp_cval;
+    uint64_t cntv_istatus;
+    uint64_t cntp_istatus;
+    uint64_t reserved[28];
 };
 struct mmu_bridge_observed {
     uint64_t status;
@@ -352,6 +374,10 @@ struct mmu_bridge_context {
 };
 _Static_assert(sizeof(struct mmu_bridge_context)==MMU_BRIDGE_CONTEXT_BYTES, "bridge ABI size");
 _Static_assert(offsetof(struct mmu_bridge_context,saved.cntkctl)==MMU_SAVE_CNTKCTL, "CNTKCTL saved offset");
+_Static_assert(offsetof(struct mmu_bridge_context,saved.cntv_ctl)==MMU_SAVE_CNTV_CTL, "CNTV_CTL saved offset");
+_Static_assert(offsetof(struct mmu_bridge_context,saved.cntv_cval)==MMU_SAVE_CNTV_CVAL, "CNTV_CVAL saved offset");
+_Static_assert(offsetof(struct mmu_bridge_context,saved.cntp_ctl)==MMU_SAVE_CNTP_CTL, "CNTP_CTL saved offset");
+_Static_assert(offsetof(struct mmu_bridge_context,saved.cntp_cval)==MMU_SAVE_CNTP_CVAL, "CNTP_CVAL saved offset");
 _Static_assert(offsetof(struct mmu_bridge_context,vm_gate_entered)==MMU_VM_GATE_ENTERED, "VM extension offset");
 _Static_assert(offsetof(struct mmu_bridge_context,restored_cntkctl)==MMU_OBS_RESTORED_CNTKCTL, "CNTKCTL readback offset");
 _Static_assert(offsetof(struct mmu_bridge_context,gpr)==MMU_GPR, "bridge GPR offset");

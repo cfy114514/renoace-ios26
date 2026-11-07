@@ -134,6 +134,16 @@ mmu_bridge_entry:
     SAVE_SYS esr_el1, MMU_SAVE_ESR
     SAVE_SYS far_el1, MMU_SAVE_FAR
     SAVE_SYS cntkctl_el1, MMU_SAVE_CNTKCTL
+    SAVE_SYS cntv_ctl_el0, MMU_SAVE_CNTV_CTL
+    SAVE_SYS cntv_cval_el0, MMU_SAVE_CNTV_CVAL
+    SAVE_SYS cntp_ctl_el0, MMU_SAVE_CNTP_CTL
+    SAVE_SYS cntp_cval_el0, MMU_SAVE_CNTP_CVAL
+    ldr x9, [x16, #MMU_SAVE_CNTV_CTL]
+    ubfx x10, x9, #2, #1
+    str x10, [x16, #MMU_SAVE_CNTV_ISTATUS]
+    ldr x9, [x16, #MMU_SAVE_CNTP_CTL]
+    ubfx x10, x9, #2, #1
+    str x10, [x16, #MMU_SAVE_CNTP_ISTATUS]
     str xzr, [x16, #MMU_SAVE_FEATURES]
     str xzr, [x16, #MMU_SAVE_PAN]
     str xzr, [x16, #MMU_SAVE_UAO]
@@ -891,6 +901,37 @@ mmu_bridge_identity:
     mrs x9, fpsr
     str x9, [x16, #MMU_FPSR_AFTER]
 .Lfp_restore_done:
+    /* The XNU path may have enabled either architectural timer. Restore
+     * absolute compare values before writable control bits while DAIF is
+     * forced masked. ISTATUS is read-only and retained only as a witness. */
+    mrs x9, daif
+    str x9, [x16, #MMU_TIMER_DAIF_AT_RESTORE]
+    msr daifset, #15
+    isb
+    mrs x9, daif
+    str x9, [x16, #MMU_TIMER_DAIF_DURING]
+    RESTORE_SYS cntv_cval_el0, MMU_SAVE_CNTV_CVAL
+    RESTORE_SYS cntp_cval_el0, MMU_SAVE_CNTP_CVAL
+    ldr x9, [x16, #MMU_SAVE_CNTV_CTL]
+    and x9, x9, #3
+    msr cntv_ctl_el0, x9
+    ldr x9, [x16, #MMU_SAVE_CNTP_CTL]
+    and x9, x9, #3
+    msr cntp_ctl_el0, x9
+    isb
+    OBS_SYS cntv_ctl_el0, MMU_TIMER_RESTORED_CNTV_CTL
+    OBS_SYS cntv_cval_el0, MMU_TIMER_RESTORED_CNTV_CVAL
+    OBS_SYS cntp_ctl_el0, MMU_TIMER_RESTORED_CNTP_CTL
+    OBS_SYS cntp_cval_el0, MMU_TIMER_RESTORED_CNTP_CVAL
+    OBS_SYS cntvct_el0, MMU_TIMER_RESTORED_CNTVCT
+    ldr x9, [x16, #MMU_TIMER_RESTORED_CNTV_CTL]
+    ubfx x10, x9, #2, #1
+    str x10, [x16, #MMU_TIMER_RESTORED_CNTV_ISTATUS]
+    ldr x9, [x16, #MMU_TIMER_RESTORED_CNTP_CTL]
+    ubfx x10, x9, #2, #1
+    str x10, [x16, #MMU_TIMER_RESTORED_CNTP_ISTATUS]
+    mov x9, #1
+    str x9, [x16, #MMU_TIMER_RESTORE_VALID]
     RESTORE_SYS cpacr_el1, MMU_SAVE_CPACR
     isb
     RESTORE_SYS contextidr_el1, MMU_SAVE_CONTEXTIDR

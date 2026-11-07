@@ -23,6 +23,11 @@ struct xnu_result {
     uint64_t after_mmu_pc, after_mmu_sctlr, after_mmu_vbar;
     uint64_t pfr1, mmfr2;
     uint64_t fp_saved, fp_verified, q_before_crc32, q_after_crc32, fpcr_before, fpcr_after, fpsr_before, fpsr_after;
+    uint64_t timer_restore_valid, timer_daif_saved, timer_daif_at_restore, timer_daif_during;
+    uint64_t timer_cntv_ctl_before, timer_cntv_ctl_after, timer_cntv_cval_before, timer_cntv_cval_after;
+    uint64_t timer_cntp_ctl_before, timer_cntp_ctl_after, timer_cntp_cval_before, timer_cntp_cval_after;
+    uint64_t timer_cntv_istatus_before, timer_cntv_istatus_after;
+    uint64_t timer_cntp_istatus_before, timer_cntp_istatus_after, timer_cntvct_after;
     uint64_t pe_initialized, pe_dt_head, pe_boot_args, pe_dt_size, dt_root, dt_size, dt_end, dt_initialized;
     uint64_t soc_base, timebase_frequency, dec_clock_rate, boot_args_global_verified;
     uint64_t vm_gate_entered, vm_gate_kind, vm_gate_pc, vm_ttbr0, vm_ttbr1, vm_cntkctl, vm_nzcv, vm_daif, vm_sctlr, vm_tcr, vm_mair, vm_restored_ttbr0, vm_restored_ttbr1, vm_gate_completed, restored_cntkctl, vm_avail_start, vm_first_avail, vm_kva_active, vm_cpu_tte, vm_invalid_tte, vm_physmap_base, vm_physmap_end, vm_soc_valid, vm_gate_leaf, vm_blob_leaf, vm_verified;

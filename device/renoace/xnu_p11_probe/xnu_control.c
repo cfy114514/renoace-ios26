@@ -190,6 +190,8 @@ __attribute__((always_inline)) static inline int state_restored(const struct mmu
     CHECK_REG(par_el1,par);CHECK_REG(elr_el1,elr);CHECK_REG(spsr_el1,spsr);
     CHECK_REG(esr_el1,esr);CHECK_REG(far_el1,far);
     CHECK_REG(cntkctl_el1,cntkctl);CHECK_REG(csselr_el1,csselr);CHECK_REG(oslsr_el1,oslsr);
+    if(RSR(cntv_cval_el0)!=s->cntv_cval || RSR(cntp_cval_el0)!=s->cntp_cval ||
+       (RSR(cntv_ctl_el0)&3)!=(s->cntv_ctl&3) || (RSR(cntp_ctl_el0)&3)!=(s->cntp_ctl&3)) return 0;
     if(s->features&MMU_FEATURE_PAN) { CHECK_REG(pan,pan); }
     if(s->features&MMU_FEATURE_UAO) { CHECK_REG(uao,uao); }
 #undef CHECK_REG
@@ -373,6 +375,23 @@ void xnu_control(const struct xnu_input *in,struct xnu_result *r) {
     r->capture.nzcv_before=r->saved.nzcv;r->capture.nzcv_after=ctx->scratch[(MMU_POST_NZCV-MMU_SCRATCH)/8];
     r->capture.daif_before=r->saved.daif;r->capture.daif_after=ctx->scratch[(MMU_POST_DAIF-MMU_SCRATCH)/8];
     r->capture.oslsr_before=r->saved.oslsr;r->capture.oslsr_after=RSR(oslsr_el1);
+    r->timer_restore_valid=ctx->scratch[(MMU_TIMER_RESTORE_VALID-MMU_SCRATCH)/8];
+    r->timer_daif_saved=r->saved.daif;
+    r->timer_daif_at_restore=ctx->scratch[(MMU_TIMER_DAIF_AT_RESTORE-MMU_SCRATCH)/8];
+    r->timer_daif_during=ctx->scratch[(MMU_TIMER_DAIF_DURING-MMU_SCRATCH)/8];
+    r->timer_cntv_ctl_before=r->saved.cntv_ctl;
+    r->timer_cntv_cval_before=r->saved.cntv_cval;
+    r->timer_cntp_ctl_before=r->saved.cntp_ctl;
+    r->timer_cntp_cval_before=r->saved.cntp_cval;
+    r->timer_cntv_ctl_after=ctx->scratch[(MMU_TIMER_RESTORED_CNTV_CTL-MMU_SCRATCH)/8];
+    r->timer_cntv_cval_after=ctx->scratch[(MMU_TIMER_RESTORED_CNTV_CVAL-MMU_SCRATCH)/8];
+    r->timer_cntp_ctl_after=ctx->scratch[(MMU_TIMER_RESTORED_CNTP_CTL-MMU_SCRATCH)/8];
+    r->timer_cntp_cval_after=ctx->scratch[(MMU_TIMER_RESTORED_CNTP_CVAL-MMU_SCRATCH)/8];
+    r->timer_cntv_istatus_before=r->saved.cntv_istatus;
+    r->timer_cntp_istatus_before=r->saved.cntp_istatus;
+    r->timer_cntv_istatus_after=ctx->scratch[(MMU_TIMER_RESTORED_CNTV_ISTATUS-MMU_SCRATCH)/8];
+    r->timer_cntp_istatus_after=ctx->scratch[(MMU_TIMER_RESTORED_CNTP_ISTATUS-MMU_SCRATCH)/8];
+    r->timer_cntvct_after=ctx->scratch[(MMU_TIMER_RESTORED_CNTVCT-MMU_SCRATCH)/8];
     r->config_verified=1;
     for(unsigned i=0;i<sizeof(configured);++i)
         if(((const volatile uint8_t *)&ctx->config)[i]!=((const uint8_t *)&configured)[i]) r->config_verified=0;
@@ -385,7 +404,12 @@ void xnu_control(const struct xnu_input *in,struct xnu_result *r) {
        r->pe_dt_head!=configured.adt_va || r->pe_boot_args!=XNU_CONST_BOOT_ARGS_VA || r->pe_dt_size!=XNU_ADT_SIZE ||
        r->dt_root!=configured.adt_va || r->dt_size!=XNU_ADT_SIZE || r->dt_end!=configured.adt_va+XNU_ADT_SIZE ||
        r->soc_base!=0 || r->timebase_frequency!=19200000 || r->dec_clock_rate!=19200000) { r->status=23; goto done; }
-    if(!r->state_verified || r->capture.nzcv_before!=r->capture.nzcv_after || r->capture.daif_before!=r->capture.daif_after ||
+    if(!r->state_verified || r->timer_restore_valid!=1 ||
+       (r->timer_daif_saved!=r->capture.daif_after) ||
+       (r->timer_daif_at_restore&0x3c0)!=0x3c0 || (r->timer_daif_during&0x3c0)!=0x3c0 ||
+       r->timer_cntv_cval_before!=r->timer_cntv_cval_after || r->timer_cntp_cval_before!=r->timer_cntp_cval_after ||
+       (r->timer_cntv_ctl_before&3)!=(r->timer_cntv_ctl_after&3) || (r->timer_cntp_ctl_before&3)!=(r->timer_cntp_ctl_after&3) ||
+       r->capture.nzcv_before!=r->capture.nzcv_after || r->capture.daif_before!=r->capture.daif_after ||
        r->mmu.entered!=1 || r->mmu.guard_entered!=1 || r->mmu.guard_passed!=1 || r->mmu.guard_checks!=guard_pairs ||
        r->mmu.observer_pc!=configured.blob_va+XNU_BRIDGE_OBSERVER_OFFSET ||
        r->mmu.identity_pc!=blob+XNU_BRIDGE_IDENTITY_OFFSET ||
@@ -432,6 +456,17 @@ void xnu_append_log(const struct xnu_result *r) {
     value("xnu_sctlr_before",r->capture.sctlr_before);value("xnu_sctlr_after",r->capture.sctlr_after);
     value("xnu_nzcv_before",r->capture.nzcv_before);value("xnu_nzcv_after",r->capture.nzcv_after);
     value("xnu_daif_before",r->capture.daif_before);value("xnu_daif_after",r->capture.daif_after);
+    value("xnu_timer_restore_valid",r->timer_restore_valid);
+    value("xnu_timer_daif_saved",r->timer_daif_saved);
+    value("xnu_timer_daif_at_restore",r->timer_daif_at_restore);
+    value("xnu_timer_daif_during",r->timer_daif_during);
+    value("xnu_cntv_ctl_before",r->timer_cntv_ctl_before);value("xnu_cntv_ctl_after",r->timer_cntv_ctl_after);
+    value("xnu_cntv_cval_before",r->timer_cntv_cval_before);value("xnu_cntv_cval_after",r->timer_cntv_cval_after);
+    value("xnu_cntp_ctl_before",r->timer_cntp_ctl_before);value("xnu_cntp_ctl_after",r->timer_cntp_ctl_after);
+    value("xnu_cntp_cval_before",r->timer_cntp_cval_before);value("xnu_cntp_cval_after",r->timer_cntp_cval_after);
+    value("xnu_cntv_istatus_before",r->timer_cntv_istatus_before);value("xnu_cntv_istatus_after",r->timer_cntv_istatus_after);
+    value("xnu_cntp_istatus_before",r->timer_cntp_istatus_before);value("xnu_cntp_istatus_after",r->timer_cntp_istatus_after);
+    value("xnu_cntvct_after",r->timer_cntvct_after);
     value("xnu_oslsr_before",r->capture.oslsr_before);value("xnu_oslsr_after",r->capture.oslsr_after);
     value("xnu_budget_ms",r->budget_ms);value("xnu_phase",r->phase);value("xnu_segment",r->segment);
     value("xnu_phase_bytes",r->phase_bytes);value("xnu_phase_total",r->phase_total);value("xnu_phase_ticks",r->phase_ticks);

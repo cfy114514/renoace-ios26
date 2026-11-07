@@ -27,3 +27,5 @@ python -m unittest discover -s tools/tests -p 'test_*.py'
 ```
 
 这是主机模型证据，`hardware_tested=false`；它不会把 TVAL 当作绝对恢复值，也不会声称已经验证真实 timer、IRQ 或手机返回路径。
+
+P11 桥的离线候选现在在 `mmu_bridge.S` 中保存 `CNTV_CTL_EL0/CVAL_EL0`、`CNTP_CTL_EL0/CVAL_EL0` 及入口 `ISTATUS`，并在恢复阶段强制 DAIF 屏蔽，先写绝对比较值、再写控制位，最后读取回控制/比较值和新的 `ISTATUS` 见证。`xnu_control.c` 只接受可写控制位和两个绝对 `CVAL` 精确恢复，并记录 timer 恢复字段；这仍需绑定真实 kernel artifact 后再做指令模型验证。
