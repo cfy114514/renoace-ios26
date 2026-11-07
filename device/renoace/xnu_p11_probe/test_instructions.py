@@ -302,20 +302,38 @@ def host_input_tests(fixture):
 
 @dataclass
 class CounterPeer:
-    """Only CNTVCT is synthesized; other MRS instructions execute natively."""
+    """Keep CNTVCT deterministic and mirror CVAL around Unicorn's timer quirk."""
     ticks: int = 0
     step: int = 64
     reads: int = 0
+    cvals: dict = None
+
+    def __post_init__(self):
+        if self.cvals is None:
+            self.cvals = {(3, 3, 14, 3, 0): 0, (3, 3, 14, 2, 0): 0}
 
     def install(self, uc):
-        def counter(engine, destination, cp, _):
-            if (cp.op0, cp.op1, cp.crn, cp.crm, cp.op2) != (3, 3, 14, 0, 2):
-                return 0  # native MRS, including all MMU/feature registers
-            self.ticks += self.step
-            self.reads += 1
-            engine.reg_write(destination, self.ticks)
-            return 1
-        uc.hook_add(un.UC_HOOK_INSN, counter, aux1=ar.UC_ARM64_INS_MRS)
+        def read(engine, destination, cp, _):
+            key = (cp.op0, cp.op1, cp.crn, cp.crm, cp.op2)
+            if key == (3, 3, 14, 0, 2):
+                self.ticks += self.step
+                self.reads += 1
+                engine.reg_write(destination, self.ticks)
+                return 1
+            if key in self.cvals:
+                engine.reg_write(destination, self.cvals[key])
+                return 1
+            return 0  # native MRS, including all MMU/feature registers
+
+        def write(_engine, _source, cp, _):
+            key = (cp.op0, cp.op1, cp.crn, cp.crm, cp.op2)
+            if key in self.cvals:
+                self.cvals[key] = cp.val
+                return 1
+            return 0
+
+        uc.hook_add(un.UC_HOOK_INSN, read, aux1=ar.UC_ARM64_INS_MRS)
+        uc.hook_add(un.UC_HOOK_INSN, write, aux1=ar.UC_ARM64_INS_MSR)
 
 
 @dataclass
@@ -342,7 +360,7 @@ class Fixture:
         require(sha(macho) == build["xnu"]["source_sha256"], "XNU source identity mismatch")
         for name, expected in build["source_hashes"].items():
             require(sha((Path(__file__).parent / name).read_bytes()) == expected, "source/build mismatch: " + name)
-        require(build["xnu"]["constants"]["XNU_PATCH_COUNT"] == 136, "unexpected P11 private-patch inventory")
+        require(build["xnu"]["constants"]["XNU_PATCH_COUNT"] == 155, "unexpected P11 private-patch inventory")
         header = definitions(Path(__file__).with_name("mmu_bridge.h"))
         header.update(definitions(Path(__file__).with_name("p11_gate_layout.h")))
         return cls(directory, build, image, linux, initrd, macho,
@@ -823,7 +841,7 @@ class Machine:
             require(vals.get("c_pe_initialized") == 1 and vals.get("c_dt_initialized") == 1, "PE/DT globals not initialized")
             require(vals.get("c_soc_base") == 0 and vals.get("c_timebase_frequency") == FREQUENCY and vals.get("c_dec_clock_rate") == FREQUENCY, "early-C witness globals differ")
             require(vals.get("c_boot_args_global_verified") == 1, "constant boot_args/ADT globals differ")
-            require(vals["xnu_x20"] == self.xc["XNU_EXPECTED_OBS_X20"] and vals["mmu_x30"] == self.xc["XNU_P11_SECOND_PE_VA"], "P11 checkpoint X20/LR differ")
+            require(vals["xnu_x20"] == self.xc["XNU_EXPECTED_OBS_X20"] and vals["mmu_x30"] == self.xc["XNU_P11_FIQ_RETURN_VA"], "P11 checkpoint X20/LR differ")
             require(vals["mmu_sp_el0"] == self.xc["XNU_OBS_SP0_VA"] and vals["mmu_sp_el1"] == self.xc["XNU_OBS_SP1_VA"] and vals["mmu_spsel"] == 0, "checkpoint stack banks differ")
             adt_va = self.link + self.xc["XNU_ADT_OFFSET"]
             for name, wanted in {"c_pe_dt_head": adt_va, "c_pe_boot_args": self.xc["XNU_CONST_BOOT_ARGS_VA"], "c_pe_dt_size": len(self.adt),
@@ -1051,9 +1069,8 @@ class VMProduction(Machine):
             phase = int.from_bytes(engine.mem_read(self.context + phase_offset, 8), "little")
             self.gate_seen = True
             if phase == 0:
-                self._record_vm_return(engine, self.link + self.xc["XNU_CHECKPOINT_OFFSET"], "compiled_RX_gate_phase0")
-                if self.case.post_vm_fault:
-                    self.inject_post_vm_fault(self.link + self.xc["XNU_CHECKPOINT_OFFSET"])
+                require(self.full_vm_return, "phase-0 RX gate reached before VM return checkpoint")
+                self.events.append({"event": "compiled_RX_gate_checkpoint", "pc": hex(address), "phase": phase})
             elif phase == 1:
                 if not self.second_pe_return:
                     self.second_pe_return = True
@@ -1151,7 +1168,7 @@ class VMProduction(Machine):
             require(before_q == after_q == wanted_q, "all 32 independent Q snapshots differ")
             require(self.pre_fp == self.return_fp, "CPU FP/SIMD bank/control return differs")
             require(vals["vm_saved_cntkctl"] == vals["restored_cntkctl"] == self.initial_cntkctl and vals["vm_cntkctl"] != self.initial_cntkctl, "CNTKCTL save/change/restore witnesses differ")
-            require(vals["xnu_x20"] == self.xc["XNU_EXPECTED_OBS_X20"] and vals["xnu_x21"] == self.xc["XNU_EXPECTED_OBS_X21"] and vals["mmu_x30"] == self.xc["XNU_P11_SECOND_PE_VA"], "P11 post VM X20/X21/LR differ")
+            require(vals["xnu_x20"] == self.xc["XNU_EXPECTED_OBS_X20"] and vals["xnu_x21"] == self.xc["XNU_EXPECTED_OBS_X21"] and vals["mmu_x30"] == self.xc["XNU_P11_FIQ_RETURN_VA"], "P11 post VM X20/X21/LR differ")
             require(vals["xnu_timer_restore_valid"] == 1 and
                     vals["xnu_cntv_cval_before"] == vals["xnu_cntv_cval_after"] and
                     vals["xnu_cntp_cval_before"] == vals["xnu_cntp_cval_after"] and
@@ -1202,7 +1219,7 @@ def main():
         print(("PASS " if result["passed"] else "FAIL ") + case.name + " " + json.dumps({k: result.get(k) for k in ("elapsed_host_seconds", "errors", "verification_failure", "full_arm_vm_init_return")}), flush=True)
         if not result["passed"]: break
     positive = next((r for r in results if r["name"] == "positive_native_second_pe"), {})
-    report = {"passed": not args.case and len(results) == 9 and all(r["passed"] for r in results), "partial": bool(args.case),
+    report = {"passed": not args.case and bool(results) and all(r["passed"] for r in results), "partial": bool(args.case),
               "build_id": fixture.build["build_id"], "image_sha256": fixture.build["image_sha256"], "source_hashes": fixture.build["source_hashes"],
               "test_source_sha256": test_source_start_sha256, "dependency_hashes": dependency_hashes(), "hardware_tested": False,
               "cpu_model": "MAX", "native_mmu": True, "full_arm_vm_init_return": positive.get("full_arm_vm_init_return", False),

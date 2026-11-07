@@ -109,7 +109,7 @@ mmu_vm_gate_common:
      * captured DAIF did not have all four mask bits set. */
     ldr x9, [x16, #MMU_VM_DAIF]
     tst x9, #0x3c0
-    b.ne .Lrestore
+    b.eq .Lrestore
     mov x0, x19
     mov x9, #2
     str x9, [x16, #P11_PHASE]
@@ -117,7 +117,7 @@ mmu_vm_gate_common:
     msr nzcv, x9
     ldr x9, [x16, #MMU_VM_DAIF]
     msr daif, x9
-    movz x9, #0xffb0
+    movz x9, #0x3fb0
     movk x9, #0x7b3, lsl #16
     movk x9, #0xfff0, lsl #32
     movk x9, #0xffff, lsl #48

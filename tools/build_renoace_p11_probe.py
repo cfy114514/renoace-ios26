@@ -540,7 +540,7 @@ def prepare_xnu(out,normal_ramdisk,bridge,bridge_report,package=False):
         constants["XNU_"+name+"_OFFSET"]=va-base
         constants["XNU_"+name+"_PA"]=0x180004000+va-base
     constants.update(XNU_EXPECTED_TIMEBASE_HZ=19200000,XNU_EXPECTED_SOC_BASE=0,
-                     XNU_EXPECTED_OBS_LR=base+second_pe,XNU_EXPECTED_OBS_X20=symbols["_serialmode"],XNU_P11_SECOND_PE_OFFSET=second_pe)
+                     XNU_EXPECTED_OBS_LR=base+0xb2ffe8,XNU_EXPECTED_OBS_X20=symbols["_serialmode"],XNU_P11_SECOND_PE_OFFSET=second_pe)
     for label,symbol in (("VM_AVAIL_START","_avail_start"),("VM_FIRST_AVAIL","_first_avail"),("VM_KVA_ACTIVE","_kva_active"),("VM_CPU_TTE","_cpu_tte"),("VM_INVALID_TTE","_invalid_tte"),("VM_PHYSMAP_BASE","_physmap_base"),("VM_PHYSMAP_END","_physmap_end")):
         constants["XNU_"+label+"_OFFSET"]=symbols[symbol]-base
     constants["XNU_EXPECTED_OBS_X21"]=symbols["_PAGE_SHIFT_CONST"]

@@ -289,7 +289,7 @@ void xnu_control(const struct xnu_input *in,struct xnu_result *r) {
         .blob_pa=blob,.blob_va=XNU_LINK_BASE+XNU_BLOB_OFFSET,
         .kernel_phys_base=XNU_PHYS_BASE,.kernel_virt_base=XNU_LINK_BASE,.window_size=XNU_WINDOW_SIZE,
         .clean_start_pa=XNU_PHYS_BASE,.clean_end_pa=clean_end,
-        .expected_arm_init_va=XNU_LINK_BASE+XNU_P11_SECOND_PE_OFFSET,
+        .expected_arm_init_va=XNU_P11_FIQ_RETURN_VA,
         .expected_args_pa=r->args,.expected_args_va=XNU_LINK_BASE+XNU_ARGS_OFFSET,
         .expected_sp0_va=XNU_SP0_VA,.expected_sp1_va=XNU_SP1_VA,
         .budget_start_ticks=started,.budget_ticks=budget_ticks,

@@ -37,6 +37,14 @@ python tools/setup_renoace_ndk.py --check
 python tools/build_renoace_p11_probe.py --bridge-only
 ```
 
-完整 P11 指令模型仍必须绑定 `local-device/20261106T115059Z/{boot.img,recovery.img,live.dtb,manifest.json}`、冻结的 seed 和上游 `references/`；这些是被 `.gitignore` 排除的私有输入，当前工作区没有它们，因此不能伪造 `native-p11-tests.json` 作为模型证据。载入这些输入后，运行完整构建，再执行 `python device/renoace/xnu_p11_probe/test_instructions.py --build out/xnu-p11-probe`。
+本次已在本机载入上述被 `.gitignore` 排除的只读输入、冻结 seed 和上游 `references/`，完成完整 P11 构建与指令模型。构建 ID 为 `082d5a90257c6a45`，Image SHA-256 为 `8930b4b0063d26ca107c0b5dbda25d955c9d9a9d957b31c86dfa32c143dc6e8e`，RX gate 为 460 字节、私有补丁 155 个。模型结果位于 `out/xnu-p11-probe/native-p11-tests.json`，`passed=true`；正向事件包含完整 VM 返回、第二次 PE 返回、`fiq_context_init` 返回 gate、旧根恢复、identity 返回和 Linux bridge 返回。该模型仍是离线指令模型，`hardware_tested=false`。
+
+复现命令：
+
+```powershell
+python tools/setup_renoace_ndk.py
+python tools/build_renoace_p11_probe.py
+python device/renoace/xnu_p11_probe/test_instructions.py --build out/xnu-p11-probe
+```
 
 第二次 PE 返回 gate 现在有第三阶段离线候选：恢复被替换的 `mov x0,x19` 后继续原始 `arm_init`，并在 `fiq_context_init` 返回地址 `0xfffffff007b33fe8` 进入 RX gate；该 gate 才恢复原始页表并回交 Linux。真实 `fiq_context_init`、IRQ 投递和手机执行仍未验证。

@@ -1,23 +1,26 @@
 # P11 offline closeout
 
 - Candidate: `out/xnu-p11-probe/build.json`
-- Build ID: `cd420027a092b00d`
-- Packed image SHA-256: `5dbb29d0c8abc75eeac6978d69d9bce03b3a3745f1b4e3671094a0f2b5619022`
-- Model result: `out/xnu-p11-probe/model-tests/max/positive_native_second_pe.json`
-- Model JSON SHA-256: `5f9321c011f5255ce8feb793baec54caaadee8fc37123044ae1e827f8f7a64fe`
+- Build ID: `082d5a90257c6a45`
+- Packed image SHA-256: `8930b4b0063d26ca107c0b5dbda25d955c9d9a9d957b31c86dfa32c143dc6e8e`
+- RX gate: 460 bytes, 155 private patches
+- Model result: `out/xnu-p11-probe/native-p11-tests.json`
+- Model JSON SHA-256: `8b2e9682fed80bddbbde5143da544c72b9ae6f4171e545aa4c29bf0b7bd3cb06`
+- Native model record SHA-256: `f9e89b16bd16d7556f089d0b974d4ad579b1a015bda0d9e36df28b93c321e370`
 - Model result is `passed: true`; it is an offline native instruction model, not phone evidence.
+- The current runner contains the positive P11 path only; negative refusal coverage remains pending.
 
 Observed checkpoints:
 
 1. Full `arm_vm_init` return at `0xfffffff007b33e34`.
 2. Compiled RX gate checkpoint at `0xfffffff007500800`.
 3. Second `PE_init_platform(TRUE)` return at `0xfffffff007b33fac`.
-4. Compiled RX gate recovery checkpoint at `0xfffffff007500800`.
-5. Identity return and outer bridge return to restored Linux.
+4. `fiq_context_init` return at `0xfffffff007b33fe8`.
+5. Compiled RX gate recovery, identity return, and outer bridge return to restored Linux.
 
-The gate is 384 bytes within the 2 KiB RX cave. The continuation immediate is `0x3e40`, which skips the three emulated displaced words. The model verifies caller GPRs, FP/SIMD, CNTKCTL, TTBR recovery, Linux bytes, FDT semantics, and source initrd preservation.
+The gate is 460 bytes within the 2 KiB RX cave. The continuation immediate is `0x3e40`, and the phase-1 continuation targets `0xfffffff007b33fb0` after the displaced `mov x0,x19`. The model verifies caller GPRs, FP/SIMD, CNTKCTL, timer CVAL/CTL restoration with DAIF masked, TTBR recovery, Linux bytes, FDT semantics, and source initrd preservation.
 
-The static validator also passes: `out/analysis/p11-second-pe-static.json`. It still records `hardware_tested=false`, `irq_ready=false`, and `xnu_runtime_connection=false`. Full iOS has not started. No phone package, flash, reboot, USB enumeration, DMA, or transfer test was run for P11.
+The static validator and `tools/tests/test_p11_timer_bridge_layout.py` both pass. It still records `hardware_tested=false`, `irq_ready=false`, and `xnu_runtime_connection=false`. Full iOS has not started. No phone package, flash, reboot, USB enumeration, DMA, or transfer test was run for P11.
 
 The remaining next boundary is timer-state recovery before crossing `fiq_context_init`; the first new timer write remains `CNTV_CTL_EL0=1` at `0xfffffff007509498`.
 
