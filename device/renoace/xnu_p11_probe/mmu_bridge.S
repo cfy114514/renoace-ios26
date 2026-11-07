@@ -144,6 +144,8 @@ mmu_bridge_entry:
     ldr x9, [x16, #MMU_SAVE_CNTP_CTL]
     ubfx x10, x9, #2, #1
     str x10, [x16, #MMU_SAVE_CNTP_ISTATUS]
+    mov x9, #1
+    str x9, [x16, #MMU_SAVE_TIMER_VALID]
     str xzr, [x16, #MMU_SAVE_FEATURES]
     str xzr, [x16, #MMU_SAVE_PAN]
     str xzr, [x16, #MMU_SAVE_UAO]

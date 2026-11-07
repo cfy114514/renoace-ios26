@@ -190,8 +190,9 @@ __attribute__((always_inline)) static inline int state_restored(const struct mmu
     CHECK_REG(par_el1,par);CHECK_REG(elr_el1,elr);CHECK_REG(spsr_el1,spsr);
     CHECK_REG(esr_el1,esr);CHECK_REG(far_el1,far);
     CHECK_REG(cntkctl_el1,cntkctl);CHECK_REG(csselr_el1,csselr);CHECK_REG(oslsr_el1,oslsr);
-    if(RSR(cntv_cval_el0)!=s->cntv_cval || RSR(cntp_cval_el0)!=s->cntp_cval ||
-       (RSR(cntv_ctl_el0)&3)!=(s->cntv_ctl&3) || (RSR(cntp_ctl_el0)&3)!=(s->cntp_ctl&3)) return 0;
+    if(s->timer_valid &&
+       (RSR(cntv_cval_el0)!=s->cntv_cval || RSR(cntp_cval_el0)!=s->cntp_cval ||
+        (RSR(cntv_ctl_el0)&3)!=(s->cntv_ctl&3) || (RSR(cntp_ctl_el0)&3)!=(s->cntp_ctl&3))) return 0;
     if(s->features&MMU_FEATURE_PAN) { CHECK_REG(pan,pan); }
     if(s->features&MMU_FEATURE_UAO) { CHECK_REG(uao,uao); }
 #undef CHECK_REG
