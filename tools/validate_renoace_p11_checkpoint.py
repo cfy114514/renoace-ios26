@@ -9,7 +9,23 @@ import struct
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_KERNEL = ROOT / "out/cloud-kernel/42306878464/extracted/build/renoace/kernel/mach.development.bcm2837.unstripped.noctf"
+_KERNEL_RELATIVE_CANDIDATES = (
+    "out/cloud-kernel/42306878464/extracted/build/renoace/kernel/mach.development.bcm2837.unstripped.noctf",
+    "out/cloud-kernel/42306878464/build/renoace/kernel/mach.development.bcm2837.unstripped.noctf",
+)
+
+
+def default_kernel() -> Path:
+    """Find the pinned artifact in either connector or CI extraction layout."""
+    for relative in _KERNEL_RELATIVE_CANDIDATES:
+        candidate = ROOT / relative
+        if candidate.is_file():
+            return candidate
+    # Keep a stable diagnostic path when the ignored artifact is unavailable.
+    return ROOT / _KERNEL_RELATIVE_CANDIDATES[0]
+
+
+DEFAULT_KERNEL = default_kernel()
 EXPECTED_SHA = "c361eda7d383619ec76c814a4f2121955547fadaa8235131d6849aa14d995743"
 BASE = 0xfffffff007004000
 ARM_INIT = 0xfffffff007b33594
@@ -95,7 +111,7 @@ def word(data: bytes, va: int) -> int:
 
 def check(data: bytes) -> dict:
     if hashlib.sha256(data).hexdigest() != EXPECTED_SHA:
-        fail("kernel SHA-256 does not match the reviewed P07 source-port artifact")
+        fail("kernel SHA-256 does not match the reviewed pinned source-port artifact")
     syms = macho_symbols(data)
     if syms.get("_arm_init") != ARM_INIT or syms.get("_PE_init_platform") != PE_INIT_PLATFORM:
         fail("arm_init or PE_init_platform symbol moved")
@@ -150,12 +166,13 @@ def check(data: bytes) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--kernel", type=Path, default=DEFAULT_KERNEL)
+    parser.add_argument("--kernel", type=Path, default=default_kernel())
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
     result = check(args.kernel.read_bytes())
     text = json.dumps(result, indent=2) + "\n"
     if args.out:
+        args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(text, encoding="utf-8", newline="\n")
     print(text, end="")
     return 0
