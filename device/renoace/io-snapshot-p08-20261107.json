@@ -1,0 +1,60 @@
+{
+  "status": "Controlled phone execution of original full VM and ml_io_map, Device pages and eight read-only GCC status reads verified; USB transport and iOS not booted",
+  "build_id": "6c44af6950b61ed2",
+  "image_sha256": "50fa9472f040f99c3b96b47ee1f9b21f6e84cc7a3a2ed1239edb97f78b580167",
+  "carrier_sha256": "146f4dffc35d688e9cfb8a9887120f886610d4fefb60a15142db97082fe08021",
+  "kernel_sha256": "c361eda7d383619ec76c814a4f2121955547fadaa8235131d6849aa14d995743",
+  "phone_record_sha256": "ff61b28d4018e4d1945ae443148f65264828a21e1123e35824e16fc975855ba1",
+  "phone_record_bytes": 6479,
+  "phone_IO_verified": true,
+  "normal_system_restored_verified": true,
+  "device_mapping": {
+    "io_gate_pc": "0xfffffff007500950",
+    "io_map_va": "0xfffffff023400000",
+    "io_map_pa": "0x100000",
+    "io_map_bytes": "0x1f0000",
+    "io_par": "0x100b00",
+    "io_pages_verified": "0x1f0",
+    "io_read_count": "0x8",
+    "io_verified": "0x1"
+  },
+  "gcc_snapshot": [
+    {
+      "offset": "0xf004",
+      "value": "0xf8222000"
+    },
+    {
+      "offset": "0xf010",
+      "value": "0x4221"
+    },
+    {
+      "offset": "0xf014",
+      "value": "0x1"
+    },
+    {
+      "offset": "0xf018",
+      "value": "0x1"
+    },
+    {
+      "offset": "0xf078",
+      "value": "0x1"
+    },
+    {
+      "offset": "0xf07c",
+      "value": "0x1"
+    },
+    {
+      "offset": "0xf050",
+      "value": "0x1"
+    },
+    {
+      "offset": "0x8c028",
+      "value": "0x1"
+    }
+  ],
+  "limitations": [
+    "No DWC3/PHY/SMMU/DMA access or peripheral writes",
+    "Clock/power snapshot is not a power lease or USB readiness proof",
+    "XNU runtime computer interaction, real IRQ delivery and full iOS remain unverified"
+  ]
+}

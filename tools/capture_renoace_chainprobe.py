@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read and verify P02-P07 FDT records. No reboot, image write or driver change."""
+"""Read and verify P02-P08 FDT records. No reboot, image write or driver change."""
 import argparse
 import base64
 from datetime import datetime, timezone
@@ -31,7 +31,7 @@ XNU_STATUS_NAMES = {
     16: "bridge_crc_mismatch", 17: "argument_or_adt_mismatch", 18: "mmu_bridge_refused_or_faulted",
     19: "bridge_configuration_changed", 20: "observer_layout_refused",
     21: "unsupported_exception_feature_refused",
-    22: "simd_state_mismatch", 23: "early_c_witness_mismatch", 24: "full_vm_witness_mismatch",
+    22: "simd_state_mismatch", 23: "early_c_witness_mismatch", 24: "full_vm_witness_mismatch", 25: "GCC_snapshot_witness_mismatch", 26: "GCC_Device_mapping_mismatch",
 }
 XNU_DIAGNOSTIC_FIELDS = {
     "xnu_budget_ms", "xnu_phase", "xnu_segment", "xnu_phase_bytes", "xnu_phase_total", "xnu_phase_ticks",
@@ -62,16 +62,20 @@ c_dt_end c_dt_initialized c_soc_base c_timebase_frequency c_dec_clock_rate c_boo
 VM_FIELDS = set("vm_gate_entered vm_gate_kind vm_gate_pc vm_ttbr0 vm_ttbr1 vm_cntkctl vm_nzcv vm_daif vm_sctlr vm_tcr vm_mair vm_restored_ttbr0 vm_restored_ttbr1 vm_gate_completed restored_cntkctl vm_avail_start vm_first_avail vm_kva_active vm_cpu_tte vm_invalid_tte vm_physmap_base vm_physmap_end vm_soc_valid vm_gate_leaf vm_blob_leaf vm_verified vm_saved_cntkctl".split())
 
 
+IO_FIELDS=set("io_schema io_magic io_status io_gate_pc io_sp io_vss_before io_map_va io_map_pa io_map_bytes io_startup_phase io_par io_read_count io_vss_after io_stage io_pages_verified io_verified".split()) | {f"io_{kind}_{i}" for kind in ("offset","value") for i in range(8)}
+
+
 def parse_record(data, expected_build, build=None):
     is_xnu = bool(build and "xnu" in build)
     is_mmu = bool(is_xnu and "bridge" in build["xnu"])
     is_fault = bool(is_mmu and build["xnu"].get("expected_exception"))
+    is_io=bool(is_mmu and build.get("io_probe"))
     is_vm = bool(is_mmu and build["xnu"].get("mode","").startswith("full-arm-vm-init"))
     is_c_init = bool(is_mmu and build["xnu"].get("checkpoint") and not is_fault)
     if not 32 <= len(data) <= (8192 if is_mmu else 4096) or not data.endswith(b"\0") or b"\0" in data[:-1]:
         raise ValueError("record length or NUL termination is invalid")
     lines = data[:-1].splitlines(keepends=True)
-    magic = b"RENOACE-XNU-VM-P07\n" if is_vm else b"RENOACE-XNU-C-INIT-P06\n" if is_c_init else b"RENOACE-XNU-EXCEPTION-P05\n" if is_fault else b"RENOACE-XNU-MMU-P04\n" if is_mmu else b"RENOACE-XNU-ENTRY-P03\n" if is_xnu else b"RENOACE-CHAINPROBE-P02\n"
+    magic = b"RENOACE-XNU-IO-P08\n" if is_io else b"RENOACE-XNU-VM-P07\n" if is_vm else b"RENOACE-XNU-C-INIT-P06\n" if is_c_init else b"RENOACE-XNU-EXCEPTION-P05\n" if is_fault else b"RENOACE-XNU-MMU-P04\n" if is_mmu else b"RENOACE-XNU-ENTRY-P03\n" if is_xnu else b"RENOACE-CHAINPROBE-P02\n"
     allowed = FIELDS | XNU_FIELDS if is_xnu else FIELDS
     if is_mmu:
         allowed |= MMU_FIELDS
@@ -81,8 +85,10 @@ def parse_record(data, expected_build, build=None):
         allowed |= C_INIT_FIELDS
     if is_vm:
         allowed |= VM_FIELDS
+    if is_io:
+        allowed |= IO_FIELDS
     diagnostics = build["xnu"].get("diagnostics_version", 0) if is_xnu else 0
-    if diagnostics not in (0, 1) and not (is_c_init and diagnostics == (3 if is_vm else 2)):
+    if diagnostics not in (0, 1) and not (is_c_init and diagnostics == (4 if is_io else 3 if is_vm else 2)):
         raise ValueError("unsupported XNU diagnostic schema")
     if diagnostics:
         allowed = allowed | XNU_DIAGNOSTIC_FIELDS
@@ -182,6 +188,23 @@ def parse_record(data, expected_build, build=None):
                 failures.append("VM native MMU/cache state")
             if (fields["vm_gate_leaf"] >> 53) & 1 or not (fields["vm_blob_leaf"] >> 53) & 1:
                 failures.append("VM gate RX and old blob NX")
+        if is_io:
+            io=build["io_probe"];gate=build["xnu"]["bridge"]["gate"]["symbols"]["mmu_io_snapshot"]
+            io_expected={"io_schema":1,"io_magic":0x5030384743435244,"io_status":2,"io_gate_pc":gate,
+                         "io_sp":layout["XNU_OBS_SP0_VA"],"io_map_pa":0x100000,"io_map_bytes":0x1f0000,
+                         "io_read_count":8,"io_stage":2,"io_pages_verified":496,"io_verified":1}
+            failures += [key for key,value in io_expected.items() if fields[key] != value]
+            offsets=io.get("whitelist_offsets",[])
+            if offsets != [0xf004,0xf010,0xf014,0xf018,0xf078,0xf07c,0xf050,0x8c028]:
+                raise ValueError("unsupported GCC register whitelist")
+            for i,offset in enumerate(offsets):
+                if fields[f"io_offset_{i}"] != offset or fields[f"io_value_{i}"] > 0xffffffff:
+                    failures.append("GCC snapshot pair "+str(i))
+            va=fields["io_map_va"];par=fields["io_par"]
+            if va < (1<<63) or va&0xfff or ((fields["io_vss_before"]+0xfff)&~0xfff) != va or fields["io_vss_after"] != va+0x1f0000 or fields["io_startup_phase"]>5:
+                failures.append("GCC original early mapping bounds")
+            if par&1 or (par>>56) != 0 or (par&0x0000fffffffff000) != 0x100000:
+                failures.append("GCC native Device translation")
         if is_mmu:
             for key in ("mmu_sctlr", "mmu_after_mmu_sctlr"):
                 if fields[key] & 0x1005 != 0x1005:
@@ -244,6 +267,10 @@ def parse_record(data, expected_build, build=None):
             result.update(xnu_vm_verified=not failures,verification_kind="full_arm_vm_init_return",
                           checkpoint="full_arm_vm_init_return" if not failures else None,
                           scope="original complete arm_vm_init, new native roots and RX recovery gate; full kernel/IOKit/drivers/iOS startup not established")
+        if is_io:
+            result.update(xnu_io_verified=not failures,verification_kind="original_ml_io_map_GCC_readonly_snapshot",
+                          checkpoint="GCC_readonly_snapshot" if not failures else None,
+                          scope="original full VM plus original Device mapping and eight GCC status reads; USB/DMA/transport and full iOS not established")
     return result
 
 
