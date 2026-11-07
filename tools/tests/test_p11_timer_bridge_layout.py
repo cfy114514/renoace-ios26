@@ -18,7 +18,7 @@ class P11TimerBridgeLayoutTests(unittest.TestCase):
             "MMU_SAVE_CNTP_CVAL": 0x308,
             "MMU_SAVE_CNTV_ISTATUS": 0x310,
             "MMU_SAVE_CNTP_ISTATUS": 0x318,
-            "MMU_TIMER_DAIF_BEFORE": 0x768,
+            "MMU_TIMER_DAIF_AT_RESTORE": 0x768,
             "MMU_TIMER_DAIF_DURING": 0x770,
             "MMU_TIMER_RESTORE_VALID": 0x7B0,
         }
