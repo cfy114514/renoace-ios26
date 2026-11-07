@@ -23,6 +23,7 @@
 - [P11 虚拟定时器恢复契约](device/renoace/STAGE14.md)
 - [后续 USB 连接方案（尚未执行）](device/renoace/USB_CONNECTION_PLAN.md)
 - [Aloha PCLM10 离线移植审计](device/renoace/STAGE16.md)
+- [USB EP0 连接契约离线模型](device/renoace/STAGE17.md)
 - [实机硬件参数](device/renoace/hardware.json)
 - [设备配置](device/renoace/board.toml)
 - [源码版本记录](sources.lock.json)

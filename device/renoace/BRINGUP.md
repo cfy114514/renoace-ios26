@@ -6,6 +6,8 @@
 
 P10 之后的离线硬件参考审计见 [STAGE16.md](STAGE16.md)；它确认 Aloha 地址大体对齐，但触控驱动、完整 reserved-memory 交接、UEFI/DarwinBoot 运行验证和 iOS root storage 仍缺失。
 
+下一条连接路径的离线输入见 [STAGE17.md](STAGE17.md)：EP0 描述符/nonce challenge 和 DMA 静止恢复顺序已建模，尚未在手机或电脑上执行。
+
 ## 源码分工
 
 - `worktrees/UniXNU-renoace`：`none24smu/UniXNU` 的 `ios26-ufs-owner-root`，iOS 26 内核、构建工具、通用驱动及固定子模块。
