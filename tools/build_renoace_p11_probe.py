@@ -16,9 +16,12 @@ import struct
 import subprocess
 import sys
 import zlib
+import os
 
 ROOT=Path(__file__).resolve().parents[1]
-NDK=Path("C:/Users/123/AppData/Local/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/windows-x86_64/bin")
+_WINDOWS_NDK=Path("C:/Users/123/AppData/Local/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/windows-x86_64/bin")
+_LINUX_NDK=Path("/workspace/toolchains/android-ndk/android-ndk-r30-beta1/toolchains/llvm/prebuilt/linux-x86_64/bin")
+NDK=Path(os.environ.get("RENOACE_NDK_BIN", os.environ.get("ANDROID_NDK_BIN", str(_WINDOWS_NDK if os.name == "nt" else _LINUX_NDK))))
 sha=lambda data:hashlib.sha256(data).hexdigest()
 XNU_SHA="c361eda7d383619ec76c814a4f2121955547fadaa8235131d6849aa14d995743"
 P11_MODE="second-pe-fiq-timer-return-source-zero-base-rx-gate-v2"
@@ -40,6 +43,15 @@ GATE_OFFSET=0x4fc800
 KERNEL_SYMBOLS={"_serialmode","_arm_init","_start_first_cpu","common_start","_bootstrap_pagetables","_LowExceptionVectorBase","_ExceptionVectorsBase","_intstack_top","_excepstack_top",
                 "_const_boot_args","_BootArgs","_PE_state","_DTRootNode","_DTSize","_DTEnd","_DTInitialized",
                 "_gPESoCBasePhys","_gPESoCBasePhysValid","_gPESoCDeviceTypeBuffer","_gPEClockFrequencyInfo","_pe_identify_machine","_PE_init_platform", "_avail_start","_first_avail","_kva_active","_cpu_tte","_invalid_tte","_physmap_base","_physmap_end","_init_thread","_PAGE_SHIFT_CONST"}
+
+
+def tool(ndk, name):
+    """Resolve an LLVM tool from either the Windows or Linux NDK layout."""
+    candidates = (ndk / name, ndk / (name + ".exe"))
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    raise FileNotFoundError("missing LLVM tool: " + " or ".join(str(p) for p in candidates))
 
 
 def require(condition,message):
@@ -371,19 +383,19 @@ def branch_word(source,target):
 
 def build_bridge(source,out,ndk,run):
     obj=out/"mmu_bridge.o";elf=out/"mmu_bridge.elf";raw=out/"mmu_bridge.raw.bin"
-    run([ndk/"clang.exe","--target=aarch64-none-elf","-mcpu=cortex-a55","-ffreestanding","-nostdlib","-I",source,
+    run([tool(ndk, "clang"),"--target=aarch64-none-elf","-mcpu=cortex-a55","-ffreestanding","-nostdlib","-I",source,
          "-c",source/"mmu_bridge.S","-o",obj])
-    if "R_AARCH64_ABS" in run([ndk/"llvm-readelf.exe","-r",obj]):raise ValueError("bridge absolute relocation")
-    run([ndk/"ld.lld.exe","-static","-nostdlib","-T",source/"mmu_bridge.ld","--build-id=none",obj,"-o",elf])
-    if run([ndk/"llvm-nm.exe","-u",elf]).strip():raise ValueError("bridge unresolved symbols")
+    if "R_AARCH64_ABS" in run([tool(ndk, "llvm-readelf"),"-r",obj]):raise ValueError("bridge absolute relocation")
+    run([tool(ndk, "ld.lld"),"-static","-nostdlib","-T",source/"mmu_bridge.ld","--build-id=none",obj,"-o",elf])
+    if run([tool(ndk, "llvm-nm"),"-u",elf]).strip():raise ValueError("bridge unresolved symbols")
     symbols={}
-    for line in run([ndk/"llvm-nm.exe","-n",elf]).splitlines():
+    for line in run([tool(ndk, "llvm-nm"),"-n",elf]).splitlines():
         fields=line.split()
         if len(fields)==3 and re.fullmatch("[0-9a-fA-F]+",fields[0]):symbols[fields[2]]=int(fields[0],16)
     required=["fault_common","start","end","entry","observer","guard","guard_resume","after_mmu","after_mmu_resume","fp_snapshot","fp_resume","bootstrap_fatal","vectors","context","identity","park"]+[f"fault_{n}" for n in range(16)]
     if any("mmu_bridge_"+name not in symbols for name in required):raise ValueError("bridge exports missing")
     if symbols["mmu_bridge_start"]!=0 or symbols["mmu_bridge_end"]>0x10000:raise ValueError("bridge layout is not within64KiB")
-    run([ndk/"llvm-objcopy.exe","-O","binary",elf,raw]);blob=bytearray(raw.read_bytes())
+    run([tool(ndk, "llvm-objcopy"),"-O","binary",elf,raw]);blob=bytearray(raw.read_bytes())
     if len(blob)!=symbols["mmu_bridge_end"] or symbols["mmu_bridge_context"]+0x1000!=len(blob):raise ValueError("bridge ABI3 0x1000 context not emitted exactly")
     resume_patches=[]
     segments,ks=kernel_symbols(kernel_bytes());base=min(s["va"] for s in segments)
@@ -394,7 +406,7 @@ def build_bridge(source,out,ndk,run):
         resume_patches.append({"symbol":name,"blob_offset":at,"original":original,"replacement":replacement,"target_kernel_offset":target})
     final=out/"mmu_bridge.bin";final.write_bytes(blob)
     (out/"bridge_payload.S").write_text('.section .rodata.bridge_payload,"a"\n.balign 16\n.global bridge_payload_start, bridge_payload_end\nbridge_payload_start:\n.incbin "'+final.as_posix()+'"\nbridge_payload_end:\n')
-    dis=run([ndk/"llvm-objdump.exe","-d",elf]);(out/"mmu_bridge.disassembly.txt").write_text(dis)
+    dis=run([tool(ndk, "llvm-objdump"),"-d",elf]);(out/"mmu_bridge.disassembly.txt").write_text(dis)
     report={"bytes":len(blob),"sha256":sha(blob),"crc32":zlib.crc32(blob),"raw_sha256":sha(raw.read_bytes()),"symbols":symbols,
             "resume_patch":resume_patches[0],"resume_patches":resume_patches,
             "abi_version":3,"context_bytes":0x1000,
@@ -403,18 +415,18 @@ def build_bridge(source,out,ndk,run):
                  "VM_GATE_OBSERVER_VA":base+0x1800000+symbols["mmu_bridge_observer"],
                  "VM_GATE_FAULT_COMMON_VA":base+0x1800000+symbols["mmu_bridge_fault_common"]}
     (out/"vm_gate_layout.h").write_text("\n".join(f"#define {k} 0x{v:x}" for k,v in gate_header.items())+"\n")
-    run([ndk/"clang.exe","--target=aarch64-none-elf","-mcpu=cortex-a55","-ffreestanding","-nostdlib","-I",source,"-I",out,"-c",source/"vm_gate.S","-o",out/"vm_gate.o"])
-    run([ndk/"ld.lld.exe","-static","-nostdlib","-T",source/"vm_gate.ld","--build-id=none",out/"vm_gate.o","-o",out/"vm_gate.elf"])
-    require(not run([ndk/"llvm-nm.exe","-u",out/"vm_gate.elf"]).strip(),"unresolved VM gate symbols")
+    run([tool(ndk, "clang"),"--target=aarch64-none-elf","-mcpu=cortex-a55","-ffreestanding","-nostdlib","-I",source,"-I",out,"-c",source/"vm_gate.S","-o",out/"vm_gate.o"])
+    run([tool(ndk, "ld.lld"),"-static","-nostdlib","-T",source/"vm_gate.ld","--build-id=none",out/"vm_gate.o","-o",out/"vm_gate.elf"])
+    require(not run([tool(ndk, "llvm-nm"),"-u",out/"vm_gate.elf"]).strip(),"unresolved VM gate symbols")
     gate_symbols={}
-    for line in run([ndk/"llvm-nm.exe","-n",out/"vm_gate.elf"]).splitlines():
+    for line in run([tool(ndk, "llvm-nm"),"-n",out/"vm_gate.elf"]).splitlines():
         f=line.split()
         if len(f)==3:gate_symbols[f[2]]=int(f[0],16)
-    run([ndk/"llvm-objcopy.exe","-O","binary",out/"vm_gate.elf",out/"vm_gate.bin"])
+    run([tool(ndk, "llvm-objcopy"),"-O","binary",out/"vm_gate.elf",out/"vm_gate.bin"])
     gate=(out/"vm_gate.bin").read_bytes()
     require(gate_symbols["mmu_vm_gate_start"]==GATE_VA and gate_symbols["mmu_vm_gate_end"]-GATE_VA==len(gate)<=0x800 and len(gate)%4==0,"VM RX gate cave bounds changed")
     report["gate"]={"va":GATE_VA,"offset":GATE_OFFSET,"bytes":len(gate),"sha256":sha(gate),"symbols":gate_symbols,"inputs":gate_header,"original_word":0xd503201f}
-    (out/"vm_gate.disassembly.txt").write_text(run([ndk/"llvm-objdump.exe","-d",out/"vm_gate.elf"]))
+    (out/"vm_gate.disassembly.txt").write_text(run([tool(ndk, "llvm-objdump"),"-d",out/"vm_gate.elf"]))
     (out/"bridge-layout.json").write_text(json.dumps(report,indent=2)+"\n")
     return bytes(blob),report
 
@@ -595,11 +607,12 @@ def prepare_xnu(out,normal_ramdisk,bridge,bridge_report,package=False):
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--ndk-bin",type=Path,default=NDK)
+    ap.add_argument("--bridge-only",action="store_true",help="compile and validate the AArch64 bridge/RX gate without private boot images")
     ap.add_argument("--package",action="store_true")
     ap.add_argument("--prepare-only",action="store_true",help="generate bridge, ADT and headers without compiling main C")
     ap.add_argument("--validate-only",action="store_true",help="refresh input evidence and check package gates without compiling or packaging")
     args=ap.parse_args()
-    if sum((args.package,args.prepare_only,args.validate_only))>1:
+    if sum((args.bridge_only,args.package,args.prepare_only,args.validate_only))>1:
         ap.error("select only one of --package, --prepare-only, --validate-only")
     source=ROOT/"device/renoace/xnu_p11_probe"
     out=ROOT/"out/xnu-p11-probe";out.mkdir(parents=True,exist_ok=True)
@@ -619,6 +632,23 @@ def main():
         result=subprocess.run(command,cwd=out,capture_output=True,text=True,timeout=120)
         if result.returncode:raise RuntimeError(result.stdout+result.stderr)
         return result.stdout
+    if args.bridge_only:
+        source_hashes=source_snapshot()
+        bridge,bridge_report=build_bridge(source,out,ndk,run)
+        require(source_snapshot()==source_hashes,"source changed during bridge-only compile; rerun")
+        report={"status":"compiled AArch64 P11 bridge and RX gate; carrier/model inputs not required",
+                "mode":P11_MODE,"hardware_tested":False,"ndk_bin":str(ndk),
+                "toolchain":{"clang":str(tool(ndk,"clang")),"ld_lld":str(tool(ndk,"ld.lld")),
+                             "llvm_nm":str(tool(ndk,"llvm-nm")),"llvm_readelf":str(tool(ndk,"llvm-readelf")),
+                             "llvm_objcopy":str(tool(ndk,"llvm-objcopy")),"llvm_objdump":str(tool(ndk,"llvm-objdump"))},
+                "kernel_sha256":sha(kernel_bytes()),"source_hashes":source_hashes,
+                "bridge_sha256":sha(bridge),"bridge_bytes":len(bridge),"bridge":bridge_report,
+                "commands":commands,"instruction_model":"not run: private boot/recovery carrier and model fixture are separate inputs"}
+        (out/"bridge-only.json").write_text(json.dumps(report,indent=2)+"\n")
+        print(f"Compiled P11 bridge: {out/'mmu_bridge.bin'} ({len(bridge)} bytes)")
+        print(f"Compiled RX gate: {out/'vm_gate.bin'} ({bridge_report['gate']['bytes']} bytes)")
+        print("Hardware tested: false. Full instruction model requires the private carrier fixture.")
+        return
     private=ROOT/"local-device/20261106T115059Z"
     manifest=json.loads((private/"manifest.json").read_text())
     spec=importlib.util.spec_from_file_location("p01_pack_helpers",ROOT/"tools/build_renoace_probe.py")
@@ -673,20 +703,20 @@ def main():
             "package_gate":"BLOCKED until dedicated P07 instruction and integration gates are independently accepted","hardware_tested":False},indent=2)+"\n")
         print("Prepared P07 pinned layout, ABI3 bridge with three resume fixups, independently validated identity ADT and witness headers; no main Image/package built")
         return
-    common=[ndk/"clang.exe","--target=aarch64-none-elf","-mcpu=cortex-a55","-O2","-ffreestanding",
+    common=[tool(ndk, "clang"),"--target=aarch64-none-elf","-mcpu=cortex-a55","-O2","-ffreestanding",
             "-nostdlib","-fno-builtin","-fno-pic","-fno-pie","-fno-stack-protector","-fno-jump-tables",
             "-fno-asynchronous-unwind-tables","-mgeneral-regs-only","-mstrict-align","-Wall","-Wextra","-Werror","-I",out]
     objects=[]
     for path in (source/"start.S",source/"probe.c",source/"xnu_control.c",out/"bridge_payload.S"):
         obj=out/(path.stem+".o");run(common+["-c",path,"-o",obj]);objects.append(obj)
     for obj in objects:
-        reloc=run([ndk/"llvm-readelf.exe","-r",obj])
+        reloc=run([tool(ndk, "llvm-readelf"),"-r",obj])
         if "R_AARCH64_ABS" in reloc:raise ValueError("absolute relocation in "+obj.name)
     elf=out/"probe.elf"
-    run([ndk/"ld.lld.exe","-static","-nostdlib","-T",source/"probe.ld","--build-id=none","-N",*objects,"-o",elf])
-    if run([ndk/"llvm-nm.exe","-u",elf]).strip():raise ValueError("unresolved symbols")
+    run([tool(ndk, "ld.lld"),"-static","-nostdlib","-T",source/"probe.ld","--build-id=none","-N",*objects,"-o",elf])
+    if run([tool(ndk, "llvm-nm"),"-u",elf]).strip():raise ValueError("unresolved symbols")
     if source_snapshot()!=source_hashes:raise ValueError("source changed during compile; rerun")
-    symbol_text=run([ndk/"llvm-nm.exe","-n",elf]);symbols={}
+    symbol_text=run([tool(ndk, "llvm-nm"),"-n",elf]);symbols={}
     for line in symbol_text.splitlines():
         fields=line.split()
         if len(fields)==3 and re.fullmatch("[0-9a-fA-F]+",fields[0]):symbols[fields[2]]=int(fields[0],16)
@@ -694,7 +724,7 @@ def main():
         raise ValueError("linked tail geometry mismatch")
     if symbols["_stack_top"]>dtb_offset or symbols["_bss_end"]>symbols["_stack_top"]-0x10000:
         raise ValueError("tail stack overlaps code/data or FDT")
-    tailpath=out/"tail.bin";run([ndk/"llvm-objcopy.exe","-O","binary",elf,tailpath])
+    tailpath=out/"tail.bin";run([tool(ndk, "llvm-objcopy"),"-O","binary",elf,tailpath])
     tail=tailpath.read_bytes()
     if len(tail)>tail_prefix-0x10000:raise ValueError("tail file leaves insufficient independent stack space")
     image=bytearray(linux)+bytearray(image_size-len(linux))
@@ -710,7 +740,7 @@ def main():
     if d.decompress(kernel)!=image or d.unused_data!=parts["dtb"]:
         raise ValueError("kernel roundtrip failed")
     (out/"Image.gz-dtb").write_bytes(kernel)
-    dis=run([ndk/"llvm-objdump.exe","-d",elf]);(out/"disassembly.txt").write_text(dis)
+    dis=run([tool(ndk, "llvm-objdump"),"-d",elf]);(out/"disassembly.txt").write_text(dis)
     instructions=[]
     for line in dis.splitlines():
         match=re.match(r"\s*([0-9a-f]+):\s+([0-9a-f]{8})\s+(.+)",line)

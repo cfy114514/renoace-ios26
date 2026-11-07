@@ -28,6 +28,15 @@ python -m unittest discover -s tools/tests -p 'test_*.py'
 
 这是主机模型证据，`hardware_tested=false`；它不会把 TVAL 当作绝对恢复值，也不会声称已经验证真实 timer、IRQ 或手机返回路径。
 
-P11 桥的离线候选现在在 `mmu_bridge.S` 中保存 `CNTV_CTL_EL0/CVAL_EL0`、`CNTP_CTL_EL0/CVAL_EL0` 及入口 `ISTATUS`，并在恢复阶段强制 DAIF 屏蔽，先写绝对比较值、再写控制位，最后读取回控制/比较值和新的 `ISTATUS` 见证。`xnu_control.c` 只接受可写控制位和两个绝对 `CVAL` 精确恢复，并记录 timer 恢复字段。真实 kernel artifact `c361eda7…` 已下载并通过静态边界检查；桥接源码尚未在当前云环境用 AArch64 NDK 编译。
+P11 桥的离线候选现在在 `mmu_bridge.S` 中保存 `CNTV_CTL_EL0/CVAL_EL0`、`CNTP_CTL_EL0/CVAL_EL0` 及入口 `ISTATUS`，并在恢复阶段强制 DAIF 屏蔽，先写绝对比较值、再写控制位，最后读取回控制/比较值和新的 `ISTATUS` 见证。`xnu_control.c` 只接受可写控制位和两个绝对 `CVAL` 精确恢复，并记录 timer 恢复字段。固定 Linux NDK 30.0.14904198 已由 [`setup_renoace_ndk.py`](../../tools/setup_renoace_ndk.py) 下载并以 SHA-1 `26b746e5…` 核验；当前云环境已真实编译 `mmu_bridge.bin`（10048 字节，SHA-256 `39300f04…`）和 `vm_gate.bin`（460 字节，SHA-256 `e4765921…`）。
+
+只编译桥和 RX gate（不读取手机或私有 boot/recovery 镜像）：
+
+```bash
+python tools/setup_renoace_ndk.py --check
+python tools/build_renoace_p11_probe.py --bridge-only
+```
+
+完整 P11 指令模型仍必须绑定 `local-device/20261106T115059Z/{boot.img,recovery.img,live.dtb,manifest.json}`、冻结的 seed 和上游 `references/`；这些是被 `.gitignore` 排除的私有输入，当前工作区没有它们，因此不能伪造 `native-p11-tests.json` 作为模型证据。载入这些输入后，运行完整构建，再执行 `python device/renoace/xnu_p11_probe/test_instructions.py --build out/xnu-p11-probe`。
 
 第二次 PE 返回 gate 现在有第三阶段离线候选：恢复被替换的 `mov x0,x19` 后继续原始 `arm_init`，并在 `fiq_context_init` 返回地址 `0xfffffff007b33fe8` 进入 RX gate；该 gate 才恢复原始页表并回交 Linux。真实 `fiq_context_init`、IRQ 投递和手机执行仍未验证。
