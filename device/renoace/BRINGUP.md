@@ -2,7 +2,7 @@
 
 本文件对应 PCLM10 / OP4A89 / OPPO project 19081，实机硬件事实见 `hardware.json`。这里只把已测量的事实用于配置。已在本机受控执行 XNU 的完整 `arm_vm_init` 并返回 Linux；这仍不是完整内核或 iOS 开机。
 
-最新结果见 [STAGE11.md](STAGE11.md)：P08 在实机通过原始设备映射与8个 GCC 状态只读快照；P07 的完整 VM、新页表和 RX 返回已验证。原 recovery 已恢复并正常回到 YAAP。当前 ABL 不支持 `fastboot boot`；受控诊断沿用临时 recovery 覆盖和恢复流程。XNU 运行期间的 USB/电脑交互仍未验证，不能用回交后的 ADB 代替。
+最新结果见 [STAGE12.md](STAGE12.md)：P09 在实机完成原始VM/设备映射和源条件约束的DWC3.1身份/状态读取，控制器报告halt，尚无枚举/DMA或电脑交互。原 recovery 已恢复并正常回到 YAAP。当前 ABL 不支持 `fastboot boot`；受控诊断沿用临时 recovery 覆盖和恢复流程。回交后 ADB 可用不等于 XNU 运行期连接已建立。
 
 ## 源码分工
 
@@ -28,7 +28,7 @@
 
 ## 接下来的执行顺序
 
-1. **建立能返回 Android 的引导探针。** 第二阶段已测得 unlocked=yes、下载上限768MiB，但 ABL 缺少 `boot` 命令，两个现有内核也无 kexec。P01–P08 已按用户授权执行临时 recovery 覆盖及复原流程，早期方案见 STAGE2。此阶段不接 iOS 根分区。
+1. **建立能返回 Android 的引导探针。** 第二阶段已测得 unlocked=yes、下载上限768MiB，但 ABL 缺少 `boot` 命令，两个现有内核也无 kexec。P01–P09 已按用户授权执行临时 recovery 覆盖及复原流程，早期方案见 STAGE2。此阶段不接 iOS 根分区。
    固定分支通用打包器只生成 gzip+附加 DTB，不能完整复现当前镜像两份 DTB 的布局。已新增本机专用 P01 打包器，保留附加 DTB、独立 v2 DTB 和 recovery DTBO，并做逐字节回解验证。实际 ABL 已接受本机受控载体，后续每次几何变化仍须复核。
 2. **串起最小引导和日志。** 在 Reno Ace 上适配 SM8150 UEFI，或实现与目标 XNU boot_args 兼容的 shim。前者可参考 `UniXNU-guacamole` / Project Aloha；后者可参考 flame。确定 bootloader 留下的显示地址、格式、stride、GIC/定时器、可用 RAM；读取原生 CPU feature registers。先完成可观察的日志，再扩展功能。
 3. **建立 XNU 运行期电脑连接，再推进最小 PID 1。** 完整 VM 初始化和异常返回已验证；USB控制台仍关闭。先按本机 GCC/SMMU/PHY 参数验证只读快照、受限 DMA/IOVA 与主机挑战应答，再验证真实定时器中断、调度及单核运行，随后拉起八核。使用自建最小 RAM 根测试，把板级启动问题与 iOS 用户态问题分开定位。
@@ -37,6 +37,6 @@
 
 ## 明确未完成的事项
 
-已有 Aloha PCLM10 UEFI 参考、专用 XNU 云构建和 P03–P08 实机受控日志，但没有组合成完整 iOS 引导包。尚无已验证的 iOS 根镜像、XNU运行期USB、真实硬件中断和完整调度器/IOKit。没有验证通话、Wi-Fi、蓝牙、相机、音频、充电或休眠。没有分配或写入任何 iOS 存储区。
+已有 Aloha PCLM10 UEFI 参考、专用 XNU 云构建和 P03–P09 实机受控日志，但没有组合成完整 iOS 引导包。尚无已验证的 iOS 根镜像、XNU运行期USB、真实硬件中断和完整调度器/IOKit。没有验证通话、Wi-Fi、蓝牙、相机、音频、充电或休眠。没有分配或写入任何 iOS 存储区。
 
 这次选定的历史分支仍使用 macOS / Xcode 构建路径。本机有 Python、Git、ADB 和 Android NDK；当前 WSL 的 `crb` 实例启动返回 `0xd0000022`。专用 macOS CI 已完成两轮有效 XNU 编译；不能把最新 UniXNU 主线的 Linux 支持直接当成此固定分支已经具备的能力。

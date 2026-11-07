@@ -1,0 +1,33 @@
+{
+  "status": "Controlled phone Device mapping and source-gated DWC3.1 identity/status inventory verified; no USB transfer or iOS boot",
+  "build_id": "e7a8d562e64fdf04",
+  "image_sha256": "83d1aa88717a66c698222e02fdde79fca59f32e039a6cc78a75fcabe04f5fcd8",
+  "carrier_sha256": "57bc8c0d7b45519e816f33ae6d49ae22ffeca6a4134167e42f0c65031c45f158",
+  "phone_record_sha256": "331e658047441437e9ca5f33376a7a6d632c783dcf383f3c53b2a9a4820c0e7d",
+  "phone_record_bytes": 7053,
+  "phone_inventory_verified": true,
+  "normal_system_and_recovery_restored": true,
+  "registers": {
+    "bcr": "0x0",
+    "gsnpsid": "0x33313130",
+    "hwparams0": "0x4020400a",
+    "gctl": "0x102000",
+    "dctl": "0xf00000",
+    "dsts": "0x420004",
+    "va": "0xfffffff037bf0000",
+    "par": "0xa60cb00",
+    "count": "0x5",
+    "coherent": "0x1",
+    "verified": "0x1"
+  },
+  "interpretation": {
+    "signature_family": "DWC_usb31 / DWC3.1",
+    "exact_revision": "not sampled",
+    "DRD_capability": true,
+    "configured_role": "device",
+    "controller_halted": true,
+    "enumeration_or_link_speed_verified": false,
+    "DMA_or_XNU_runtime_computer_control_verified": false
+  },
+  "scope": "CPU-only Device mapping and whitelisted loads; no controller reset, peripheral writes or endpoint/DMA operation"
+}

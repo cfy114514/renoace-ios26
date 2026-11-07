@@ -2,7 +2,7 @@
 
 2026-11-07：以 **UniXNU 的 iOS 26 / 普通 arm64 兼容分支**作为研究主线，结合 `UniXNU-zeta` 的转换方案、`ios-flame` 的 SM8150 驱动及 OPPO 官方 19081 源码交叉适配。
 
-当前完成：专用 XNU 云编译、正式零基址源码修复、INTID19 静态核验，以及 P04–P07 实机 MMU、真实异常、早期 C 和完整 `arm_vm_init`。**P08 已在实机执行原始设备映射，验证496页 Device 属性并读回8个 USB 电源/时钟寄存器**，恢复后正常回到 YAAP。原 recovery、正常系统和清理核验通过。**完整调度器、真实硬件中断、IOKit/驱动及 XNU 运行期电脑连接仍未验证，完整 iOS 尚未开机。**
+当前完成：专用 XNU 云编译、正式零基址源码修复，以及 P04–P08 实机 MMU、真实异常、早期 C、完整 VM 和 Device 映射。**P09 已在实机有条件地读到 Synopsys DWC3.1 控制器身份与状态，完成检查后正常返回 YAAP**；原 recovery 和清理核验通过。**USB 枚举/DMA及 XNU 运行期电脑连接仍未实现，完整 iOS 尚未开机；完整中断、调度、IOKit及驱动仍待验证。**
 
 离线验证：P01 实际 ARM64 指令模型17项、XNU 装载布局/ADT/boot_args 校验10项、P03 完整装载模型9项和独立内存操作190项通过。模型与布局检查不等于手机启动证明。
 
@@ -18,6 +18,7 @@
 - [P06 实机早期 C、设备树与 PE 初始化](device/renoace/STAGE9.md)
 - [P07 实机完整 VM 初始化与 RX 恢复](device/renoace/STAGE10.md)
 - [P08 实机设备映射与 USB 时钟只读快照](device/renoace/STAGE11.md)
+- [P09 实机 DWC3.1 条件只读识别](device/renoace/STAGE12.md)
 - [实机硬件参数](device/renoace/hardware.json)
 - [设备配置](device/renoace/board.toml)
 - [源码版本记录](sources.lock.json)
