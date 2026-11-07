@@ -42,11 +42,14 @@
 python tools/collect_renoace.py --root --boot-images
 ```
 
-查看配置（不会启动手机）：
+查看配置（不会启动手机；当前 source checkout 需要显式绑定其 Git worktree）：
 
 ```powershell
-python worktrees/UniXNU-renoace/unixnu defconfig renoace_research_defconfig -D device/renoace --out out/unixnu
-python worktrees/UniXNU-renoace/unixnu status -D device/renoace --out out/unixnu
+$src = (Resolve-Path references/UniXNU-ios26).Path
+$env:GIT_DIR = Join-Path $src ".git"
+$env:GIT_WORK_TREE = $src
+python (Join-Path $src "unixnu") defconfig renoace_research_defconfig -D device/renoace --out out/unixnu
+python (Join-Path $src "unixnu") status -D device/renoace --out out/unixnu
 ```
 
 `board.example=true` 表示资料尚未足以构建实机镜像，沿用上游的构建拒绝机制。不要只移除此标志就运行构建或上游其他设备的启动脚本。
