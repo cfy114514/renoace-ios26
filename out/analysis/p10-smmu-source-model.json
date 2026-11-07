@@ -1,0 +1,62 @@
+{
+  "passed": true,
+  "hardware_tested": false,
+  "device_access": false,
+  "dma_access_verified": false,
+  "aperture": {
+    "base": "0x15000000",
+    "bytes": "0x100000",
+    "gr0_page": "0x1000"
+  },
+  "registers": {
+    "scr0": "0x0",
+    "idr0": "0x20",
+    "idr1": "0x24",
+    "smr": "0x800",
+    "s2cr": "0xc00"
+  },
+  "passes": [
+    {
+      "scr0": 0,
+      "idr0": 134217730,
+      "idr1": 1610612744,
+      "row_count": 2,
+      "smr": [
+        2147483968,
+        2147483969
+      ],
+      "s2cr": [
+        131072,
+        131072
+      ],
+      "raw_sha256": "6b6b2eb909d07c500231bcd66e1f6de1fe6cefd1cadec2ee0ab4e1a6ae01719f",
+      "raw_crc32": "0xedbe891c",
+      "raw_bytes": 28
+    },
+    {
+      "scr0": 0,
+      "idr0": 134217730,
+      "idr1": 1610612744,
+      "row_count": 2,
+      "smr": [
+        2147483968,
+        2147483969
+      ],
+      "s2cr": [
+        131072,
+        131072
+      ],
+      "raw_sha256": "6b6b2eb909d07c500231bcd66e1f6de1fe6cefd1cadec2ee0ab4e1a6ae01719f",
+      "raw_crc32": "0xedbe891c",
+      "raw_bytes": 28
+    }
+  ],
+  "cases": {
+    "stable_two_pass": true,
+    "mismatch_detected": true,
+    "zero_capability_rejected": true,
+    "sms0_raw_only": true,
+    "source_page_unchanged": true
+  },
+  "scope": "host-only synthetic model; no SMMU carrier, phone, MMIO, DMA, or USB handshake"
+}
