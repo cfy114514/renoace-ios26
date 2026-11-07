@@ -21,8 +21,18 @@ ROOT=Path(__file__).resolve().parents[1]
 NDK=Path("C:/Users/123/AppData/Local/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/windows-x86_64/bin")
 sha=lambda data:hashlib.sha256(data).hexdigest()
 XNU_SHA="c361eda7d383619ec76c814a4f2121955547fadaa8235131d6849aa14d995743"
-P11_MODE="second-pe-return-source-zero-base-rx-gate-v1"
-KERNEL_PATH=ROOT/"out/cloud-kernel/42306878464/extracted/build/renoace/kernel/mach.development.bcm2837.unstripped.noctf"
+P11_MODE="second-pe-fiq-timer-return-source-zero-base-rx-gate-v2"
+_KERNEL_RELATIVE_CANDIDATES=(
+    "out/cloud-kernel/42306878464/extracted/build/renoace/kernel/mach.development.bcm2837.unstripped.noctf",
+    "out/cloud-kernel/42306878464/build/renoace/kernel/mach.development.bcm2837.unstripped.noctf",
+)
+def default_kernel_path():
+    for relative in _KERNEL_RELATIVE_CANDIDATES:
+        candidate=ROOT/relative
+        if candidate.is_file():
+            return candidate
+    return ROOT/_KERNEL_RELATIVE_CANDIDATES[0]
+KERNEL_PATH=default_kernel_path()
 CHECKPOINT_VA=0xfffffff007b33e34
 CHECKPOINT_FILE=0xb2fe34
 GATE_VA=0xfffffff007500800
@@ -410,7 +420,7 @@ def build_bridge(source,out,ndk,run):
 
 
 def prepare_xnu(out,normal_ramdisk,bridge,bridge_report,package=False):
-    path=ROOT/"out/cloud-kernel/42306878464/extracted/build/renoace/kernel/mach.development.bcm2837.unstripped.noctf"
+    path=default_kernel_path()
     data=path.read_bytes()
     if sha(data)!=XNU_SHA:raise ValueError("pinned fresh XNU source changed")
     if struct.unpack_from("<4I",data)!=(0xfeedfacf,0x100000c,0,2):raise ValueError("unexpected Mach-O identity")
@@ -460,6 +470,8 @@ def prepare_xnu(out,normal_ramdisk,bridge,bridge_report,package=False):
     gate_branch(checkpoint,0xd0ffb368,"mmu_vm_gate_checkpoint","first instruction after complete original arm_vm_init return")
     second_pe=0xb2ffac
     gate_branch(second_pe,0xaa1303e0,"mmu_vm_gate_checkpoint","second PE(TRUE) return")
+    fiq_return=0xb2ffe8
+    gate_branch(fiq_return,0x97e69a99,"mmu_vm_gate_checkpoint","after fiq_context_init return")
     gate_bytes=(out/"vm_gate.bin").read_bytes()
     for i in range(0,len(gate_bytes),4):
         relative=GATE_OFFSET+i;off=file_offset(relative)
@@ -494,6 +506,7 @@ def prepare_xnu(out,normal_ramdisk,bridge,bridge_report,package=False):
         XNU_SEGMENT_COUNT=len(ordered),XNU_PATCH_COUNT=len(patches),XNU_BLOB_OFFSET=blob_offset,XNU_BLOB_RESERVE=blob_reserve,
         XNU_TOP_DATA_OFFSET=top_data,XNU_MAPPED_CLEAN_START=0x180004000,XNU_MAPPED_CLEAN_END=0x190000000,
         XNU_ARM_INIT_OFFSET=symbols["_arm_init"]-base,XNU_CHECKPOINT_OFFSET=checkpoint,XNU_P11_SECOND_PE_OFFSET=second_pe,XNU_P11_SECOND_PE_VA=base+second_pe,
+        XNU_P11_SECOND_CONTINUE_VA=base+0xb2ffb0,XNU_P11_FIQ_RETURN_VA=base+0xb2ffe8,
         XNU_OBS_SP0_VA=symbols["_intstack_top"]-0xd0,XNU_OBS_SP1_VA=symbols["_excepstack_top"],
         XNU_CONST_BOOT_ARGS_VA=symbols["_const_boot_args"],XNU_CONST_BOOT_ARGS_OFFSET=symbols["_const_boot_args"]-base,
         XNU_LOW_VECTORS_OFFSET=symbols["_LowExceptionVectorBase"]-base,
@@ -546,7 +559,7 @@ def prepare_xnu(out,normal_ramdisk,bridge,bridge_report,package=False):
         "archive_offset":archive_offset,"member_data_offset":source_offset,"constants":constants,"segments":ordered,"symbols":symbols,"patches":patches,
         "ADT":{"bytes":len(adt),"sha256":sha(adt),"seed_sha256":seed_hash,"seed_bytes":256,"profile":"measured complete /soc identity semantics; CPU0/19.2MHz, CHRP NVRAM; compiled zero-base source fix; no storage or USB activation","validation_sha256":sha((out/"adt-validation.json").read_bytes()),"seed_origin":"copied once from frozen P04 attempt1; reused for all P07 rebuilds/packages"},
         "boot_args":{"bytes":len(args),"sha256":sha(args),"device_tree_va":hex(base+adt_offset),"top_of_kernel_data_pa":hex(0x180004000+top_data)},
-        "bridge":bridge_report,"diagnostics_version":3,"budget_ms":15000,"mode":P11_MODE,"scope":"original full VM then original arm_init through second PE(TRUE) return; CNTV timer not crossed; no IRQ/IOKit/iOS startup"}
+        "bridge":bridge_report,"diagnostics_version":3,"budget_ms":15000,"mode":P11_MODE,"scope":"original full VM then original arm_init through fiq_context_init return with timer save/restore; no IRQ/IOKit/iOS startup"}
     phys=0x180004000;pool=phys+constants["XNU_BOOTSTRAP_OFFSET"]
     clean_end=constants["XNU_MAPPED_CLEAN_END"];clean_blocks=((clean_end+0x1fffff)&~0x1fffff)-(phys&~0x1fffff)
     if phys+top_data>clean_end:raise ValueError("used data leaves identity mapping")
@@ -590,7 +603,7 @@ def main():
         ap.error("select only one of --package, --prepare-only, --validate-only")
     source=ROOT/"device/renoace/xnu_p11_probe"
     out=ROOT/"out/xnu-p11-probe";out.mkdir(parents=True,exist_ok=True)
-    (source/"p11_gate_layout.h").write_text("#define P11_PHASE 0xca0\n#define P11_DISPLACED_PAGE 0xfffffff0071a1000UL\n#define P11_DISPLACED_OFF 0x1e8\n#define P11_CONTINUE_VA 0xfffffff007b33e40UL\n",encoding="utf-8",newline="\n")
+    (source/"p11_gate_layout.h").write_text("#define P11_PHASE 0xca0\n#define P11_DISPLACED_PAGE 0xfffffff0071a1000UL\n#define P11_DISPLACED_OFF 0x1e8\n#define P11_CONTINUE_VA 0xfffffff007b33e40UL\n#define P11_SECOND_CONTINUE_VA 0xfffffff007b2ffb0UL\n#define P11_FIQ_RETURN_VA 0xfffffff007b33fe8UL\n",encoding="utf-8",newline="\n")
     if args.validate_only or args.package:
         evidence=p07_package_evidence(out,source)
         if args.validate_only:
@@ -703,7 +716,7 @@ def main():
         match=re.match(r"\s*([0-9a-f]+):\s+([0-9a-f]{8})\s+(.+)",line)
         if match:instructions.append(match.group(3))
     if any(re.match(r"(?:smc|hvc|svc)\b",s) for s in instructions):raise ValueError("unexpected firmware/system call")
-    report={"status":"offline P11 second-PE return checkpoint candidate; compiled zero-base source fix; hardware-untested; NOT iOS boot","mode":P11_MODE,"builder_sha256":sha(Path(__file__).read_bytes()),
+    report={"status":"offline P11 fiq_context_init return checkpoint candidate with timer recovery; compiled zero-base source fix; hardware-untested; NOT iOS boot","mode":P11_MODE,"builder_sha256":sha(Path(__file__).read_bytes()),
             "hardware_tested":False,"build_id":build_id,"constants":constants,"symbols":symbols,
             "original_linux_sha256":sha(linux),"image_sha256":sha(image),"image_bytes":len(image),
             "kernel_payload_sha256":sha(kernel),"source_hashes":source_hashes,"commands":commands,

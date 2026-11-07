@@ -46,6 +46,16 @@ class P11TimerBridgeLayoutTests(unittest.TestCase):
         self.assertIn("OBS_SYS cntp_ctl_el0, MMU_TIMER_RESTORED_CNTP_CTL", text)
         self.assertIn("str x9, [x16, #MMU_SAVE_TIMER_VALID]", text)
 
+    def test_second_pe_continues_to_fiq_return_gate(self):
+        gate = (ROOT / "device/renoace/xnu_p11_probe/vm_gate.S").read_text(encoding="utf-8")
+        builder = (ROOT / "tools/build_renoace_p11_probe.py").read_text(encoding="utf-8")
+        self.assertIn(".Lsecond_continue:", gate)
+        self.assertIn("tbnz x17, #63, .Lsecond_continue", gate)
+        self.assertIn("mov x0, x19", gate)
+        self.assertIn("mov x9, #2", gate)
+        self.assertIn('fiq_return=0xb2ffe8', builder)
+        self.assertIn('0x97e69a99', builder)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,3 +2,5 @@
 #define P11_DISPLACED_PAGE 0xfffffff0071a1000UL
 #define P11_DISPLACED_OFF 0x1e8
 #define P11_CONTINUE_VA 0xfffffff007b33e40UL
+#define P11_SECOND_CONTINUE_VA 0xfffffff007b2ffb0UL
+#define P11_FIQ_RETURN_VA 0xfffffff007b33fe8UL

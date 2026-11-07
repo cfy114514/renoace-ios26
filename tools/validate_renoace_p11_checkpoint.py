@@ -33,6 +33,7 @@ PE_INIT_PLATFORM = 0xfffffff007aa4c70
 SECOND_PE_CALL = 0xfffffff007b33fa8
 SECOND_PE_RETURN = 0xfffffff007b33fac
 TIMER_ENABLE = 0xfffffff007509498
+FIQ_RETURN = 0xfffffff007b33fe8
 
 
 def fail(message: str) -> None:
@@ -126,6 +127,7 @@ def check(data: bytes) -> dict:
         0xfffffff007b33fa0: 0x52800020,    # x0=TRUE
         0xfffffff007b33fa4: 0xaa1303e1,    # x1=&BootCpuData
         0xfffffff007b33fe4: 0x97e75529,    # fiq_context_init call
+        FIQ_RETURN: 0x97e69a99,             # first instruction after fiq_context_init
         TIMER_ENABLE: 0xd51be328,           # CNTV_CTL_EL0 write
     }
     for va, expected_word in expected.items():
@@ -156,6 +158,9 @@ def check(data: bytes) -> dict:
             "word": hex(0xd51be328),
             "must_not_be_crossed_without_timer_recovery": True,
         },
+        "fiq_context_init_return_va": hex(FIQ_RETURN),
+        "fiq_context_init_return_word": hex(0x97e69a99),
+        "timer_bridge_checkpoint_ready": True,
         "execution_order": "second PE(TRUE) return -> early debug/CPU setup -> fiq_context_init -> CNTV_CTL_EL0 write",
         "hardware_tested": False,
         "irq_ready": False,

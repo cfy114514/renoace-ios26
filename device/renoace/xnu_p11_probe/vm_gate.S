@@ -1,4 +1,4 @@
-/* P11 two-phase recovery gate: continue after VM, recover at second PE return. */
+/* P11 recovery gate: continue after VM, second PE return, then recover after FIQ. */
 #include "mmu_bridge.h"
 #include "vm_gate_layout.h"
 #include "p11_gate_layout.h"
@@ -58,7 +58,12 @@ mmu_vm_gate_common:
     VM_OBS tcr_el1, MMU_VM_TCR
     VM_OBS mair_el1, MMU_VM_MAIR
     ldr x9, [x16, #P11_PHASE]
-    cbnz x9, .Lrestore
+    cbz x9, .Lphase0
+    cmp x9, #1
+    b.ne .Lrestore
+    tbnz x17, #63, .Lsecond_continue
+    b .Lrestore
+.Lphase0:
     tbnz x17, #63, .Lcontinue
 .Lrestore:
     dsb sy
@@ -93,6 +98,22 @@ mmu_vm_gate_common:
     ldr x9, [x16, #MMU_VM_DAIF]
     msr daif, x9
     movz x9, #0x3e40
+    movk x9, #0x7b3, lsl #16
+    movk x9, #0xfff0, lsl #32
+    movk x9, #0xffff, lsl #48
+    br x9
+.Lsecond_continue:
+    /* The second-PE return gate displaces `mov x0,x19`.  Continue the
+     * original arm_init body after that instruction and stop at the patched
+     * return from fiq_context_init. */
+    mov x0, x19
+    mov x9, #2
+    str x9, [x16, #P11_PHASE]
+    ldr x9, [x16, #MMU_VM_NZCV]
+    msr nzcv, x9
+    ldr x9, [x16, #MMU_VM_DAIF]
+    msr daif, x9
+    movz x9, #0xffb0
     movk x9, #0x7b3, lsl #16
     movk x9, #0xfff0, lsl #32
     movk x9, #0xffff, lsl #48

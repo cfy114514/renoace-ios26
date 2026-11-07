@@ -115,7 +115,7 @@ def set_stack_banks(uc, sp0, sp1):
 def definitions(path):
     result = {}
     for line in path.read_text().splitlines():
-        match = re.fullmatch(r"#define\s+(MMU_[A-Z0-9_]+)\s+(0x[0-9a-fA-F]+|[0-9]+)", line.strip())
+        match = re.fullmatch(r"#define\s+((?:MMU|P11)_[A-Z0-9_]+)\s+(0x[0-9a-fA-F]+|[0-9]+)", line.strip())
         if match:
             result[match[1]] = int(match[2], 0)
     return result
@@ -342,10 +342,11 @@ class Fixture:
         require(sha(macho) == build["xnu"]["source_sha256"], "XNU source identity mismatch")
         for name, expected in build["source_hashes"].items():
             require(sha((Path(__file__).parent / name).read_bytes()) == expected, "source/build mismatch: " + name)
-        require(build["xnu"]["constants"]["XNU_PATCH_COUNT"] == 135, "unexpected P11 private-patch inventory")
+        require(build["xnu"]["constants"]["XNU_PATCH_COUNT"] == 136, "unexpected P11 private-patch inventory")
+        header = definitions(Path(__file__).with_name("mmu_bridge.h"))
+        header.update(definitions(Path(__file__).with_name("p11_gate_layout.h")))
         return cls(directory, build, image, linux, initrd, macho,
-                   (ROOT / "local-device/20261106T115059Z/live.dtb").read_bytes(),
-                   definitions(Path(__file__).with_name("mmu_bridge.h")))
+                   (ROOT / "local-device/20261106T115059Z/live.dtb").read_bytes(), header)
 
 
 @dataclass(frozen=True)
@@ -884,6 +885,7 @@ class VMProduction(Machine):
     def __init__(self, fixture, case, report_dir):
         self.full_vm_return = False
         self.second_pe_return = False
+        self.fiq_return_seen = False
         self.vm_final = None
         self.gate_seen = False
         self.gate_fault_seen = False
@@ -1042,30 +1044,49 @@ class VMProduction(Machine):
         if address == self.blob + self.bs["mmu_bridge_guard"]:
             self.bootstrap_pool_guard = bytes(engine.mem_read(self.kbase + self.xc["XNU_BOOTSTRAP_OFFSET"], self.xc["XNU_BOOTSTRAP_BYTES"]))
         elif address == self.link + self.xc["XNU_CHECKPOINT_OFFSET"]:
-            require(not self.full_vm_return, "full VM checkpoint executed twice")
-            self.full_vm_return = True
-            state = registers(engine)
-            root = state["ttbr1_el1"]
-            self.vm_final = {"pc": hex(address), "sysregs": {k: hex(v) for k, v in state.items()},
-                             "gprs": {"x" + str(i): hex(engine.reg_read(getattr(ar, "UC_ARM64_REG_X" + str(i)))) for i in (0, 19, 20, 21, 29, 30)},
-                             "gate": self.walk(root, self.xc["XNU_VM_GATE_NORMAL_VA"]),
-                             "observer": self.walk(root, self.blob_va + self.bs["mmu_bridge_observer"]),
-                             "context": self.walk(root, self.blob_va + self.bs["mmu_bridge_context"]),
-                             "bootstrap_pool_unchanged": self.bootstrap_pool_guard == bytes(engine.mem_read(self.kbase + self.xc["XNU_BOOTSTRAP_OFFSET"], self.xc["XNU_BOOTSTRAP_BYTES"]))}
-            self.events.append({"event": "full_original_arm_vm_init_return", "pc": hex(address), "ttbr0": hex(state["ttbr0_el1"]), "ttbr1": hex(root)})
-            print("FULL_VM_RETURN " + json.dumps(self.vm_final), flush=True)
-            if self.case.post_vm_fault:
-                self.inject_post_vm_fault(address)
+            self._record_vm_return(engine, address, "native_full_vm_return")
+        elif address == self.gate_symbols["mmu_vm_gate_checkpoint"]:
+            phase_offset = self.h.get("P11_PHASE")
+            require(phase_offset is not None, "P11 phase offset missing from bridge ABI")
+            phase = int.from_bytes(engine.mem_read(self.context + phase_offset, 8), "little")
+            self.gate_seen = True
+            if phase == 0:
+                self._record_vm_return(engine, self.link + self.xc["XNU_CHECKPOINT_OFFSET"], "compiled_RX_gate_phase0")
+                if self.case.post_vm_fault:
+                    self.inject_post_vm_fault(self.link + self.xc["XNU_CHECKPOINT_OFFSET"])
+            elif phase == 1:
+                if not self.second_pe_return:
+                    self.second_pe_return = True
+                self.events.append({"event": "second_PE_true_return", "pc": hex(self.xc["XNU_P11_SECOND_PE_VA"]),
+                                    "gate_pc": hex(address), "x19": hex(engine.reg_read(ar.UC_ARM64_REG_X19)),
+                                    "x20": hex(engine.reg_read(ar.UC_ARM64_REG_X20)), "phase": phase})
+            elif phase == 2:
+                require(not self.fiq_return_seen, "fiq_context_init return gate executed twice")
+                self.fiq_return_seen = True
+                self.events.append({"event": "fiq_context_init_return", "pc": hex(self.xc["XNU_P11_FIQ_RETURN_VA"]),
+                                    "gate_pc": hex(address), "phase": phase})
+            else:
+                raise AssertionError("unexpected P11 gate phase: " + str(phase))
         elif address == self.xc["XNU_P11_SECOND_PE_VA"]:
             require(not self.second_pe_return, "second PE return executed twice")
             self.second_pe_return = True
             self.events.append({"event": "second_PE_true_return", "pc": hex(address), "x19": hex(engine.reg_read(ar.UC_ARM64_REG_X19)), "x20": hex(engine.reg_read(ar.UC_ARM64_REG_X20))})
-        elif address == self.gate_symbols["mmu_vm_gate_checkpoint"]:
-            self.gate_seen = True
-            self.events.append({"event": "compiled_RX_gate_checkpoint", "pc": hex(address)})
         elif address == self.gate_symbols["mmu_vm_gate_fault_0"]:
             self.gate_fault_seen = True
             self.events.append({"event": "compiled_RX_gate_fault_0", "pc": hex(address)})
+
+    def _record_vm_return(self, engine, address, event_name):
+        require(not self.full_vm_return, "full VM checkpoint executed twice")
+        self.full_vm_return = True
+        state = registers(engine)
+        root = state["ttbr1_el1"]
+        self.vm_final = {"pc": hex(address), "sysregs": {k: hex(v) for k, v in state.items()},
+                         "gprs": {"x" + str(i): hex(engine.reg_read(getattr(ar, "UC_ARM64_REG_X" + str(i)))) for i in (0, 19, 20, 21, 29, 30)},
+                         "gate": self.walk(root, self.xc["XNU_VM_GATE_NORMAL_VA"]),
+                         "observer": self.walk(root, self.blob_va + self.bs["mmu_bridge_observer"]),
+                         "context": self.walk(root, self.blob_va + self.bs["mmu_bridge_context"]),
+                         "bootstrap_pool_unchanged": self.bootstrap_pool_guard == bytes(engine.mem_read(self.kbase + self.xc["XNU_BOOTSTRAP_OFFSET"], self.xc["XNU_BOOTSTRAP_BYTES"]))}
+        self.events.append({"event": event_name, "pc": hex(address), "ttbr0": hex(state["ttbr0_el1"]), "ttbr1": hex(root)})
 
     def inject_post_vm_fault(self, pc):
         state = registers(self.uc)
@@ -1112,7 +1133,7 @@ class VMProduction(Machine):
         result["native_memory_write_hook_semantics"] = self.native_write_hook_proof
         if expected == 0:
             require(not self.injections, "positive case contains host injection")
-            require(self.full_vm_return and self.second_pe_return and self.gate_seen and self.observer_seen and self.identity_seen and self.bridge_returned, "missing P11 full VM/second PE/gate/recovery checkpoints")
+            require(self.full_vm_return and self.second_pe_return and self.fiq_return_seen and self.gate_seen and self.observer_seen and self.identity_seen and self.bridge_returned, "missing P11 full VM/second PE/FIQ gate/recovery checkpoints")
             require(vals["vm_verified"] == 1 and vals["vm_gate_entered"] == vals["vm_gate_completed"] == 1, "compiled C did not verify VM witnesses")
             require(vals["vm_ttbr0"] == self.xc["XNU_VM_INVALID_ROOT_PA"] and vals["vm_ttbr1"] == self.xc["XNU_VM_CPU_ROOT_PA"], "VM native roots differ")
             require(vals["vm_restored_ttbr0"] == vals["mmu_guard_ttbr0"] and vals["vm_restored_ttbr1"] == vals["mmu_guard_ttbr1"], "RX gate did not restore guarded bootstrap roots")
@@ -1131,6 +1152,14 @@ class VMProduction(Machine):
             require(self.pre_fp == self.return_fp, "CPU FP/SIMD bank/control return differs")
             require(vals["vm_saved_cntkctl"] == vals["restored_cntkctl"] == self.initial_cntkctl and vals["vm_cntkctl"] != self.initial_cntkctl, "CNTKCTL save/change/restore witnesses differ")
             require(vals["xnu_x20"] == self.xc["XNU_EXPECTED_OBS_X20"] and vals["xnu_x21"] == self.xc["XNU_EXPECTED_OBS_X21"] and vals["mmu_x30"] == self.xc["XNU_P11_SECOND_PE_VA"], "P11 post VM X20/X21/LR differ")
+            require(vals["xnu_timer_restore_valid"] == 1 and
+                    vals["xnu_cntv_cval_before"] == vals["xnu_cntv_cval_after"] and
+                    vals["xnu_cntp_cval_before"] == vals["xnu_cntp_cval_after"] and
+                    (vals["xnu_cntv_ctl_before"] & 3) == (vals["xnu_cntv_ctl_after"] & 3) and
+                    (vals["xnu_cntp_ctl_before"] & 3) == (vals["xnu_cntp_ctl_after"] & 3) and
+                    (vals["xnu_timer_daif_at_restore"] & 0x3c0) == 0x3c0 and
+                    (vals["xnu_timer_daif_during"] & 0x3c0) == 0x3c0,
+                    "P11 timer state restoration witnesses differ")
             result["positive_injections"] = []
             result["physical_tail_after_first_avail_untouched"] = True
             result["FP_SIMD_evidence"] = {"q_before_sha256": sha(before_q), "q_after_sha256": sha(after_q), "seeded_sha256": sha(wanted_q), "fpcr": hex(self.pre_fp["fpcr"]), "fpsr": hex(self.pre_fp["fpsr"])}
