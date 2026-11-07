@@ -10,8 +10,8 @@ P09 实机已恢复并验证；本阶段只做静态离线检查，没有手机�
 
 这是后续原始初始化的边界证明，不是中断或 USB 证明。当前输入下 `pe_arm_init_interrupts` 仍因合法 SoC 基址为零而走旧值接口的返回路径，未到达 GIC/时基映射。
 
-再往后会调用 `fiq_context_init`，在 `0xfffffff007509498` 写 `CNTV_CTL_EL0=1`。继续越过该指令必须保存/恢复 `CNTV_CTL_EL0` 和绝对 `CNTV_CVAL_EL0`，并控制待处理虚拟定时器/中断。原 P07/P09 恢复桥没有这部分契约；当前 P11 候选已加入定时器保存/恢复字段、只读 `ISTATUS` 见证和 `fiq_context_init` 返回 gate，但仍需绑定本内核完成指令模型复核。
+再往后会调用 `fiq_context_init`，在 `0xfffffff007509498` 写 `CNTV_CTL_EL0=1`。继续越过该指令必须保存/恢复 `CNTV_CTL_EL0` 和绝对 `CNTV_CVAL_EL0`，并控制待处理虚拟定时器/中断。原 P07/P09 恢复桥没有这部分契约；当前 P11 正向指令模型已验证定时器保存/恢复字段、只读 `ISTATUS` 见证和 `fiq_context_init` 返回 gate。
 
 可复现检查器：[validate_renoace_p11_checkpoint.py](../tools/validate_renoace_p11_checkpoint.py)。当前检查通过，且篡改返回字的副本会被拒绝；输出：[p11-second-pe-static.json](../../out/analysis/p11-second-pe-static.json)。
 
-后续真正的 P11 候选仍需新的桥接/日志字段、模型覆盖和独立复核。不能把该离线边界当作手机启动、IRQ、DMA、XNU 运行期电脑连接或完整 iOS 证明。
+负向拒绝用例仍未运行；该离线模型不能替代手机启动、IRQ、DMA、XNU 运行期电脑连接或完整 iOS 证明。

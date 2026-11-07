@@ -45,6 +45,8 @@ python tools/build_renoace_p11_probe.py --bridge-only
 python tools/setup_renoace_ndk.py
 python tools/build_renoace_p11_probe.py
 python device/renoace/xnu_p11_probe/test_instructions.py --build out/xnu-p11-probe
+# Include all eight refusal/fault peers:
+python device/renoace/xnu_p11_probe/test_instructions.py --build out/xnu-p11-probe --all-cases
 ```
 
-第二次 PE 返回 gate 现在有第三阶段离线候选：恢复被替换的 `mov x0,x19` 后继续原始 `arm_init`，并在 `fiq_context_init` 返回地址 `0xfffffff007b33fe8` 进入 RX gate；该 gate 才恢复原始页表并回交 Linux。真实 `fiq_context_init`、IRQ 投递和手机执行仍未验证。
+第二次 PE 返回 gate 已完成第三阶段离线正向验证：恢复被替换的 `mov x0,x19` 后继续原始 `arm_init`，并在 `fiq_context_init` 返回地址 `0xfffffff007b33fe8` 进入 RX gate；该 gate 恢复原始页表并回交 Linux。负向拒绝用例、真实 `fiq_context_init`、IRQ 投递和手机执行仍未验证。

@@ -1200,16 +1200,28 @@ class VMProduction(Machine):
 
 def main():
     global CPU_MODEL, CPU_NAME
-    parser = argparse.ArgumentParser(description="P11 packaged second PE return; no phone operations")
+    parser = argparse.ArgumentParser(description="P11 packaged FIQ/timer model; no phone operations")
     parser.add_argument("--build", type=Path, default=ROOT / "out/xnu-vm-probe")
     parser.add_argument("--case", help="single case, partial report only")
+    parser.add_argument("--all-cases", action="store_true", help="run the positive path and all eight refusal/fault cases")
     args = parser.parse_args()
     test_source_start_sha256 = sha(Path(__file__).read_bytes())
     CPU_MODEL = ar.UC_CPU_ARM64_MAX; CPU_NAME = "MAX"
     fixture = Fixture.load(args.build)
-    cases = [VMCase("positive_native_second_pe")]
+    available_cases = [
+        VMCase("positive_native_second_pe"),
+        VMCase("private_patch_refusal", remove_patch=True),
+        VMCase("source_crc_refusal", source_corrupt=True),
+        VMCase("reserved_window_refusal", reserved_conflict=True),
+        VMCase("bad_table_descriptor", bad_descriptor=True),
+        VMCase("bounded_time_refusal", budget=True),
+        VMCase("table_guard_deadline", guard_budget=True),
+        VMCase("injected_pre_mmu_fault", injected_fault=True),
+        VMCase("synthetic_post_vm_gate_fault", post_vm_fault=True),
+    ]
+    cases = available_cases if args.all_cases else [available_cases[0]]
     if args.case:
-        cases = [c for c in cases if c.name == args.case]; require(cases, "unknown case")
+        cases = [c for c in available_cases if c.name == args.case]; require(cases, "unknown case")
     output = args.build / "model-tests/max"; output.mkdir(parents=True, exist_ok=True)
     results = []
     for case in cases:
@@ -1219,13 +1231,17 @@ def main():
         print(("PASS " if result["passed"] else "FAIL ") + case.name + " " + json.dumps({k: result.get(k) for k in ("elapsed_host_seconds", "errors", "verification_failure", "full_arm_vm_init_return")}), flush=True)
         if not result["passed"]: break
     positive = next((r for r in results if r["name"] == "positive_native_second_pe"), {})
+    negative_results = [r for r in results if r["name"] != "positive_native_second_pe"]
     report = {"passed": not args.case and bool(results) and all(r["passed"] for r in results), "partial": bool(args.case),
+              "all_cases_requested": bool(args.all_cases),
+              "negative_cases_executed": len(negative_results),
+              "negative_cases_complete": len(negative_results) == 8,
               "build_id": fixture.build["build_id"], "image_sha256": fixture.build["image_sha256"], "source_hashes": fixture.build["source_hashes"],
               "test_source_sha256": test_source_start_sha256, "dependency_hashes": dependency_hashes(), "hardware_tested": False,
               "cpu_model": "MAX", "native_mmu": True, "full_arm_vm_init_return": positive.get("full_arm_vm_init_return", False),
               "translation_register_hooks": False, "virtual_alias_api_mappings": False,
               "positive_injections": positive.get("injections", []),
-              "negative_cases_passed": len([r for r in results if r["name"] != "positive_native_second_pe" and r["passed"]]) == 8,
+              "negative_cases_passed": len(negative_results) == 8 and all(r["passed"] for r in negative_results),
               "caller_state_exact": positive.get("caller_state_exact", False), "FP_SIMD_exact": positive.get("FP_SIMD_exact", False),
               "CNTKCTL_exact": positive.get("CNTKCTL_exact", False), "cases": results,
               "modeled_not_verified": ["CNTVCT progression/performance", "MAX model CPU differs from phone; phone LSE/ISA verification separate", "cache/coherency", "firmware memory ownership", "exception delivery is synthetic only in labelled negative cases"],
