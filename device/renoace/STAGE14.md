@@ -49,4 +49,4 @@ python device/renoace/xnu_p11_probe/test_instructions.py --build out/xnu-p11-pro
 python device/renoace/xnu_p11_probe/test_instructions.py --build out/xnu-p11-probe --all-cases
 ```
 
-第二次 PE 返回 gate 已完成第三阶段离线验证：恢复被替换的 `mov x0,x19` 后继续原始 `arm_init`，并在 `fiq_context_init` 返回地址 `0xfffffff007b33fe8` 进入 RX gate；该 gate 恢复原始页表并回交 Linux，8 个负向拒绝/故障用例全部通过。真实 `fiq_context_init`、IRQ 投递和手机执行仍未验证。
+第二次 PE 返回 gate 已完成第三阶段离线验证，并在手机上完成一次 P11 实机验证：恢复被替换的 `mov x0,x19` 后继续原始 `arm_init`，在 `fiq_context_init` 返回地址 `0xfffffff007b33fe8` 进入 RX gate，timer CVAL/CTL 和 DAIF 恢复等式通过，随后回交 YAAP。实机会话记录位于 `local-device/p11-xnu-entry-20261107T143947Z/`，build ID 为 `9272bb5058944c8e`，记录 SHA-256 为 `60f99eb34f3889d1c408da18a4cc83ae282263608755a8144d6f3af293c534cc`；原 recovery 已恢复，boot/dtbo/vbmeta 未变化，YAAP `sys.boot_completed=1`。P11 仍未进入 USB/DMA 传输路径，因此真实 XNU 运行期电脑连接、IRQ 投递和完整 iOS 仍未验证。
