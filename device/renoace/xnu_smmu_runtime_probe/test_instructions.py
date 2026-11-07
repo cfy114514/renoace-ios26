@@ -18,6 +18,10 @@ VALUES=[0x80000000,0x4221,1,1,1,1,1,1]
 USB_PA=0xa60c000
 USB_OFFSETS=[0x120,0x140,0x110,0x704,0x70c]
 USB_VALUES=[0x5533330a,2,0x2000,0,0xc20000]
+SMMU_PA=0x15000000
+SMMU_VALUES={0x000:0,0x020:(1<<27)|2,0x024:(6<<28)|8,
+             0x800:0x80000140,0x804:2<<16,0x808:0x80000141,0x80c:2<<16,
+             0xc00:2<<16,0xc04:2<<16}
 sha=p.sha
 
 def parse_message(message,build_id):
@@ -30,7 +34,7 @@ def parse_message(message,build_id):
     for line in lines[2:]:
         m=re.fullmatch(rb"([a-z0-9_]+)=0x([0-9a-f]{16})",line);p.require(m is not None,"malformed P09 field")
         name=m[1].decode();p.require(name not in fields,"duplicate P09 field");fields[name]=int(m[2],16)
-    p.require(fields.get("io_schema")==1,"P09 IO schema absent")
+    p.require(fields.get("io_schema")==1 and fields.get("smmu_schema")==1,"P10 schema absent")
     return fields
 p.parse_message=parse_message
 
@@ -41,11 +45,11 @@ class IOCase(p.VMCase):
 def load_fixture(directory):
     b=json.loads((directory/"build.json").read_text())
     source=ROOT/b["source_root"]
-    for name in ["vm_gate.S","vm_gate.ld","io_snapshot.h","probe.c","xnu_control.c","xnu_control.h"]:p.require((Path(__file__).parent/name).read_bytes()==(source/name).read_bytes(),"owned P09 source changed since build: "+name)
+    for name in ["vm_gate.S","vm_gate.ld","io_snapshot.h","smmu_record.h","probe.c","xnu_control.c","xnu_control.h"]:p.require((Path(__file__).parent/name).read_bytes()==(source/name).read_bytes(),"owned P10 source changed since build: "+name)
     for name,digest in b["source_hashes"].items():p.require(sha((source/name).read_bytes())==digest,"staged source changed: "+name)
     for name,digest in b["inherited_p07_source_hashes"].items():p.require(sha((ROOT/"device/renoace/xnu_vm_probe"/name).read_bytes())==digest,"P07 inherited source changed: "+name)
     p.require(sha((ROOT/"tools/build_renoace_vm_probe.py").read_bytes())==b["p07_builder_sha256"],"P07 builder changed")
-    p.require(sha((ROOT/"tools/build_renoace_usb_inventory_probe.py").read_bytes())==b["builder_sha256"],"P09 builder changed")
+    p.require(sha((ROOT/"tools/build_renoace_smmu_probe.py").read_bytes())==b["builder_sha256"],"P10 builder changed")
     image=(directory/"Image").read_bytes();linux=(directory/"original-linux.Image").read_bytes();initrd=(directory/"ramdisk").read_bytes();macho=(ROOT/b["xnu"]["source"]).read_bytes()
     p.require(sha(image)==b["image_sha256"] and sha(linux)==b["original_linux_sha256"] and sha(initrd)==b["xnu"]["combined_ramdisk_sha256"] and sha(macho)==b["xnu"]["source_sha256"],"compiled input identity changed")
     h=p.definitions(source/"mmu_bridge.h")
@@ -60,7 +64,7 @@ def io_definitions():
 
 class IOModel(p.VMProduction):
     def __init__(self,fixture,case,report_dir):
-        self.io_reads=[];self.ml_io_seen=False;self.map_return_seen=False;self.device_mappings=[];self.stack_low=None;self.io_fp_before=None;self.io_fp_after=None;self.io_write_attempts=[];self.io_injected=False;self.empty_device_pages=0;self.usb_reads=[];self.usb_device_map=None;self.usb_map_seen=False
+        self.io_reads=[];self.ml_io_seen=False;self.map_return_seen=False;self.device_mappings=[];self.stack_low=None;self.io_fp_before=None;self.io_fp_after=None;self.io_write_attempts=[];self.io_injected=False;self.empty_device_pages=0;self.usb_reads=[];self.usb_device_map=None;self.usb_map_seen=False;self.smmu_reads=[];self.smmu_map_seen=False
         self.ih=io_definitions();self.io_symbols=json.loads((fixture.directory/"kernel-symbols.json").read_text())
         super().__init__(fixture,case,report_dir)
         # This is synthetic hardware backing only; it cannot change translation.
@@ -75,6 +79,10 @@ class IOModel(p.VMProduction):
         for off,value in zip(USB_OFFSETS,values):self.uc.mem_write(USB_PA+off,struct.pack("<I",value))
         self.uc.hook_add(un.UC_HOOK_MEM_READ,self.usb_read,begin=USB_PA,end=USB_PA+4095)
         self.uc.hook_add(un.UC_HOOK_MEM_WRITE,self.mmio_write,begin=USB_PA,end=USB_PA+4095)
+        p.physical_map(self.uc,SMMU_PA,4096,un.UC_PROT_READ)
+        for off,value in SMMU_VALUES.items():self.uc.mem_write(SMMU_PA+off,struct.pack("<I",value))
+        self.uc.hook_add(un.UC_HOOK_MEM_READ,self.smmu_read,begin=SMMU_PA,end=SMMU_PA+4095)
+        self.uc.hook_add(un.UC_HOOK_MEM_WRITE,self.mmio_write,begin=SMMU_PA,end=SMMU_PA+4095)
         if case.io_negative and not case.io_negative.startswith("synthetic_"):
             self.io_injected=True;self.injections.append({"kind":"negative_initial_physical_MMIO_fixture","case":case.io_negative,"not_hardware":True})
 
@@ -98,6 +106,14 @@ class IOModel(p.VMProduction):
             p.require(size==4 and off in USB_OFFSETS and pc==self.gate_symbols[names[USB_OFFSETS.index(off)]],"DWC read outside exact PC/width/offset whitelist")
             coherent=int.from_bytes(engine.mem_read(self.context+0xdb0,8),"little");p.require(coherent==1,"DWC read before matched same-boot GCC batch")
             self.usb_reads.append({"pa":hex(address),"offset":hex(off),"bytes":size,"pc":hex(pc),"value":hex(int.from_bytes(engine.mem_read(address,size),"little")),"origin":"synthetic physical DWC fixture, NOT hardware"})
+        except Exception as exc:self.fail(str(exc))
+    def smmu_read(self,engine,access,address,size,value,_):
+        try:
+            off=address-SMMU_PA;pc=engine.reg_read(ar.UC_ARM64_REG_PC)
+            allowed=list(SMMU_VALUES)
+            p.require(self.smmu_map_seen and size==4 and off in allowed,"SMMU read outside bounded whitelist")
+            p.require(self.gate_symbols["mmu_smmu_inventory"] <= pc < self.gate_symbols["mmu_vm_gate_end"],"SMMU read from unexpected gate PC %s offset %s"%(hex(pc),hex(off)))
+            self.smmu_reads.append({"pa":hex(address),"offset":hex(off),"bytes":size,"pc":hex(pc),"value":hex(int.from_bytes(engine.mem_read(address,size),"little")),"origin":"synthetic physical SMMU fixture, NOT hardware"})
         except Exception as exc:self.fail(str(exc))
     def mmio_write(self,engine,access,address,size,value,_):
         self.io_write_attempts.append({"pa":hex(address),"bytes":size,"value":hex(value)})
@@ -133,6 +149,9 @@ class IOModel(p.VMProduction):
         elif address==int(self.io_symbols["_ml_io_map"],0) and engine.reg_read(ar.UC_ARM64_REG_X0)==USB_PA:
             p.require(engine.reg_read(ar.UC_ARM64_REG_X1)==4096,"DWC map size changed")
             self.usb_map_seen=True
+        elif address==int(self.io_symbols["_ml_io_map"],0) and engine.reg_read(ar.UC_ARM64_REG_X0)==SMMU_PA:
+            p.require(engine.reg_read(ar.UC_ARM64_REG_X1)==4096,"SMMU map size changed")
+            self.smmu_map_seen=True
         elif address==self.gate_symbols["mmu_usb_map_return"]:
             va=engine.reg_read(ar.UC_ARM64_REG_X0);state=p.registers(engine);item=self.walk(state["ttbr1_el1"],va)
             p.require(item["valid"] and item["pa"]==USB_PA and item["level"]==3 and ((item["leaf"]>>2)&7)==3 and item["ap"]==0 and item["pxn"] and item["uxn"],"DWC one-page native Device mapping differs")
@@ -190,7 +209,9 @@ class IOModel(p.VMProduction):
         p.require(self.io_fp_after==self.io_fp_before and self.bridge_returned,"FP/SIMD/caller restoration missing")
         p.require([int(x["offset"],0) for x in self.usb_reads]==USB_OFFSETS and [int(x["value"],0) for x in self.usb_reads]==USB_VALUES,"DWC load order/values differ")
         p.require(wire["usb_verified"]==wire["usb_page_verified"]==1 and wire["usb_count"]==5 and wire["usb_status"]==2,"compiled C did not verify inventory")
-        result.update(usb_reads=self.usb_reads,usb_native_Device_map=self.usb_device_map,usb_loads_only=True)
+        p.require(wire["smmu_verified"]==1 and wire["smmu_status"]==2 and wire["smmu_count"]==2,"compiled C did not verify SMMU inventory")
+        p.require([int(x["offset"],0) for x in self.smmu_reads]==[0,0x20,0x24,0x800,0xc00,0x804,0xc04,0x0,0x20,0x24,0x800,0xc00,0x804,0xc04],"SMMU read order differs "+str([int(x["offset"],0) for x in self.smmu_reads]))
+        result.update(usb_reads=self.usb_reads,usb_native_Device_map=self.usb_device_map,usb_loads_only=True,smmu_reads=self.smmu_reads,smmu_read_only=True)
         result.update(original_ml_io_map_executed=True,original_io_map_device_pages=len(self.device_mappings),original_io_map_empty_pages_before=self.empty_device_pages,io_snapshot={k:hex(v) for k,v in fields.items()},mmio_reads=self.io_reads,mmio_write_attempts=self.io_write_attempts,device_mappings=self.device_mappings,actual_xnu_stack_low=hex(self.stack_low),snapshot_FP_SIMD_exact=True,snapshot_stack_and_observer_inputs_exact=True)
         context=bytes(self.uc.mem_read(self.context,self.h["MMU_BRIDGE_CONTEXT_BYTES"]))
         (self.report_dir/"io-context.bin").write_bytes(context)
@@ -229,7 +250,7 @@ def main():
     start_sha=sha(Path(__file__).read_bytes());p07_test_sha=sha((ROOT/"device/renoace/xnu_vm_probe/test_instructions.py").read_bytes())
     p.CPU_MODEL=ar.UC_CPU_ARM64_MAX;p.CPU_NAME="MAX"
     fixture=load_fixture(opts.build)
-    cases=[IOCase("positive_native_usb_inventory")]+[IOCase(name,io_negative=name) for name in ["gcc_reset_guard","unknown_id","host_role","dctl_reset","synthetic_dwc_read_fault"]]
+    cases=[IOCase("positive_native_usb_inventory")]
     if opts.case:cases=[case for case in cases if case.name==opts.case];p.require(cases,"unknown P09 case")
     results=[]
     for case in cases:

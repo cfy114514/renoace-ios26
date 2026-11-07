@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "hardware_tested": false,
+  "device_access": false,
+  "dma_access_verified": false,
+  "carrier_sha256": "28a854cdf0b1cb7f8c1acf790ac53f8ec53867cbcaaa83ab35e2028d7aee64ed",
+  "build_id": "5a9d13808b5488da",
+  "gate_bytes": 2008,
+  "restore_sha256": "8c951baaceed969b29877bc9090d5872ecad0df4cb0e13c2c27c111f5c8ae009",
+  "scope": "static native artifact binding; no phone, SMMU, USB, or DMA execution"
+}

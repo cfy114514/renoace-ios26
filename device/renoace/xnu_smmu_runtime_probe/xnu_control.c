@@ -560,11 +560,14 @@ void xnu_append_log(const struct xnu_result *r) {
     value("usb_coherent",r->usb.coherent);
     value("usb_reason",r->usb.reason);
     value("smmu_schema",1);value("smmu_verified",r->smmu_verified);
+    value("smmu_magic",r->smmu.magic);value("smmu_reason",r->smmu.reason);
     value("smmu_status",r->smmu.status);value("smmu_stage",r->smmu.stage);
     value("smmu_count",r->smmu.count);value("smmu_va",r->smmu.va);value("smmu_par",r->smmu.par);
     value("smmu_vss_before",r->smmu.vss_before);value("smmu_vss_after",r->smmu.vss_after);
     value("smmu_scr0",r->smmu.scr0);value("smmu_idr0",r->smmu.idr0);value("smmu_idr1",r->smmu.idr1);
     value("smmu_scr0_2",r->smmu.scr0_2);value("smmu_idr0_2",r->smmu.idr0_2);value("smmu_idr1_2",r->smmu.idr1_2);
+    value("smmu_row1_0",r->smmu.rows1[0]);value("smmu_row1_1",r->smmu.rows1[1]);
+    value("smmu_row2_0",r->smmu.rows2[0]);value("smmu_row2_1",r->smmu.rows2[1]);
     value("io_schema",1);value("io_magic",r->io.magic);value("io_status",r->io.status);
     value("io_gate_pc",r->io.pc);value("io_sp",r->io.sp);value("io_vss_before",r->io.vss_before);
     value("io_map_va",r->io.va);value("io_map_pa",IO_GCC_PA);value("io_map_bytes",r->io.bytes);

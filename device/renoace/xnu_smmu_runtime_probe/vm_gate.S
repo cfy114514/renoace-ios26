@@ -156,7 +156,7 @@ mmu_io_snapshot:
     mov x10, #IO_GCC_BYTES
     str x10, [x16, #IO_REC_BYTES]
     /* Full vector preservation: do not rely on AAPCS's partial V8..15 rule. */
-    sub sp, sp, #0x240
+    sub sp, sp, #0x280
     str x0, [sp, #0x200]
     str x19, [sp, #0x208]
     str x29, [sp, #0x210]
@@ -167,6 +167,14 @@ mmu_io_snapshot:
     str x10, [sp, #0x228]
     mrs x9, par_el1
     str x9, [sp, #0x230]
+    str x20, [sp, #0x240]
+    str x21, [sp, #0x248]
+    str x22, [sp, #0x250]
+    str x23, [sp, #0x258]
+    str x24, [sp, #0x260]
+    str x25, [sp, #0x268]
+    str x26, [sp, #0x270]
+    str x27, [sp, #0x278]
     stp q0, q1, [sp, #0x0]
     stp q2, q3, [sp, #0x20]
     stp q4, q5, [sp, #0x40]
@@ -257,12 +265,20 @@ mmu_io_read:
     msr fpsr, x10
     ldr x9, [sp, #0x230]
     msr par_el1, x9
+    ldr x20, [sp, #0x240]
+    ldr x21, [sp, #0x248]
+    ldr x22, [sp, #0x250]
+    ldr x23, [sp, #0x258]
+    ldr x24, [sp, #0x260]
+    ldr x25, [sp, #0x268]
+    ldr x26, [sp, #0x270]
+    ldr x27, [sp, #0x278]
     mov x16, x19
     ldr x0, [sp, #0x200]
     ldr x19, [sp, #0x208]
     ldr x29, [sp, #0x210]
     ldr x30, [sp, #0x218]
-    add sp, sp, #0x240
+    add sp, sp, #0x280
     b mmu_io_snapshot_return
 .Lio_refuse:
     mov x9, #IO_STATUS_REFUSED
@@ -476,7 +492,7 @@ mmu_smmu_inventory:
     b.ne .Lsmmu_refuse
     mov x9, #SMMU_REC_STAGE_ROWS
     str x9, [x19, #SMMU_REC_STAGE]
-.macro SMMU_PASS base
+.macro SMMU_PASS base,rowbase
     ldr w9, [x20, #SMMU_REC_SCR0_OFF]
     str x9, [x19, #\base]
     ldr w10, [x20, #SMMU_REC_IDR0_OFF]
@@ -496,22 +512,24 @@ mmu_smmu_inventory:
     cmp x23, #SMMU_REC_MAX_ROWS
     b.hi .Lsmmu_refuse
     str x23, [x19, #SMMU_REC_COUNT]
-    add x22, x19, #(\base+24)
+    add x22, x19, #\rowbase
     mov x24, #0
 .Lsmmu_rows_\base:
     cmp x24, x23
     b.hs .Lsmmu_rows_done_\base
-    add x25, x24, #SMMU_REC_SMR_OFF
+    lsl x25, x24, #2
+    add x25, x25, #SMMU_REC_SMR_OFF
     ldr w26, [x20, x25]
-    add x25, x24, #SMMU_REC_S2CR_OFF
+    lsl x25, x24, #2
+    add x25, x25, #SMMU_REC_S2CR_OFF
     ldr w27, [x20, x25]
     stp w26, w27, [x22], #8
     add x24, x24, #1
     b .Lsmmu_rows_\base
 .Lsmmu_rows_done_\base:
 .endm
-    SMMU_PASS SMMU_REC_SCR0
-    SMMU_PASS SMMU_REC_SCR0_2
+    SMMU_PASS SMMU_REC_SCR0, SMMU_REC_ROWS1
+    SMMU_PASS SMMU_REC_SCR0_2, SMMU_REC_ROWS2
     mov x9, #SMMU_REC_STATUS_COMPLETE
     str x9, [x19, #SMMU_REC_STATUS]
     dsb sy
