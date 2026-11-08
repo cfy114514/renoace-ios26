@@ -35,7 +35,7 @@
   },
   "verification_commands": [
     "python tools/audit_renoace_ios_artifacts.py",
-    "python references/UniXNU-ios26/unixnu ipsw -D device/renoace --out out/unixnu --ipsw <LOCAL_IPSW> KernelCache DeviceTree StaticTrustCache Cryptex1,SystemTrustCache",
+    "python references/UniXNU-ios26/unixnu ipsw -D device/renoace --out out/unixnu --ipsw <LOCAL_IPSW> fetch KernelCache DeviceTree StaticTrustCache Cryptex1,SystemTrustCache",
     "python references/UniXNU-zeta/scripts/prove-zeta-dyld-cache.py --input <LOCAL_DYLD_SHARED_CACHE>"
   ],
   "handoff_note": "Do not pass the board.toml URL to unixnu ipsw until an explicit download authorization exists; the current checkout contains no userland inputs."
