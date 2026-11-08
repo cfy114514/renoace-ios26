@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "target": {
+    "product": "iPhone18,2",
+    "ios_version": "26.5.2",
+    "build": "23F84",
+    "device_class": "v54ap",
+    "ipsw_url_declared_in_board_toml": "https://updates.cdn-apple.com/2026SpringFCS/fullrestores/140-26432/CF51E589-7C43-4B55-B909-CF585DAD0570/iPhone18,2_26.5.2_23F84_Restore.ipsw"
+  },
+  "local_only_policy": {
+    "download_allowed": false,
+    "phone_access_allowed": false,
+    "usb_or_dma_allowed": false,
+    "accepted_source": "user-provided local IPSW or extracted files"
+  },
+  "required_inputs": [
+    {"name": "ipsw", "expected_path": "local-inputs/ios/iPhone18,2_26.5.2_23F84_Restore.ipsw", "required": true, "verification": "sha256 and Apple archive extraction"},
+    {"name": "KernelCache", "expected_path": "local-inputs/ios/extracted/KernelCache", "required": true, "verification": "IM4P/Mach-O parse and build binding"},
+    {"name": "DeviceTree", "expected_path": "local-inputs/ios/extracted/DeviceTree", "required": true, "verification": "FDT parse and product/build binding"},
+    {"name": "StaticTrustCache", "expected_path": "local-inputs/ios/extracted/StaticTrustCache", "required": true, "verification": "hash and format parse"},
+    {"name": "Cryptex1,SystemTrustCache", "expected_path": "local-inputs/ios/extracted/Cryptex1,SystemTrustCache", "required": true, "verification": "archive/component hash and format parse"},
+    {"name": "system_or_root_volume", "expected_path": "local-inputs/ios/root-or-system", "required": true, "verification": "signed volume metadata and filesystem read test"},
+    {"name": "dyld_shared_cache", "expected_path": "local-inputs/ios/root-or-system/System/Library/Caches/com.apple.dyld/dyld_shared_cache_arm64e", "required": true, "verification": "Mach-O cache parse and zeta rewrite fixture"}
+  ],
+  "acceptance": {
+    "all_required_files_present": false,
+    "target_identity_matches_board_toml": false,
+    "sha256_manifest_recorded": false,
+    "ipsw_components_extracted": false,
+    "kernelcache_verified": false,
+    "trust_and_cryptex_verified": false,
+    "root_volume_verified": false,
+    "dyld_cache_verified": false,
+    "ready_for_darwinboot": false
+  },
+  "verification_commands": [
+    "python tools/audit_renoace_ios_artifacts.py",
+    "python references/UniXNU-ios26/unixnu ipsw -D device/renoace --out out/unixnu --ipsw <LOCAL_IPSW> KernelCache DeviceTree StaticTrustCache Cryptex1,SystemTrustCache",
+    "python references/UniXNU-zeta/scripts/prove-zeta-dyld-cache.py --input <LOCAL_DYLD_SHARED_CACHE>"
+  ],
+  "handoff_note": "Do not pass the board.toml URL to unixnu ipsw until an explicit download authorization exists; the current checkout contains no userland inputs."
+}
